@@ -13,6 +13,8 @@ const dateFormatter = new Intl.DateTimeFormat("ru-RU", {
   timeStyle: "short",
 });
 
+const MESSAGES_PER_PAGE = 5;
+
 function formatMessagePreview(text: string | null) {
   if (!text) {
     return "Пустое сообщение";
@@ -26,6 +28,7 @@ export function MessagesDashboard({ dialogs }: MessagesDashboardProps) {
   const [selectedChatId, setSelectedChatId] = useState<
     DialogViewModel["telegram_chat_id"] | null
   >(dialogs[0]?.telegram_chat_id ?? null);
+  const [currentPage, setCurrentPage] = useState(1);
 
   const normalizedQuery = searchQuery.trim().toLowerCase();
   const filteredDialogs = useMemo(() => {
@@ -48,7 +51,14 @@ export function MessagesDashboard({ dialogs }: MessagesDashboardProps) {
     filteredDialogs.find((dialog) => dialog.telegram_chat_id === selectedChatId) ??
     filteredDialogs[0] ??
     null;
-  const selectedMessages = selectedDialog?.messages.slice(0, 5) ?? [];
+  const totalPages = Math.max(
+    1,
+    Math.ceil((selectedDialog?.messages.length ?? 0) / MESSAGES_PER_PAGE),
+  );
+  const safeCurrentPage = Math.min(currentPage, totalPages);
+  const pageStartIndex = (safeCurrentPage - 1) * MESSAGES_PER_PAGE;
+  const selectedMessages =
+    selectedDialog?.messages.slice(pageStartIndex, pageStartIndex + MESSAGES_PER_PAGE) ?? [];
 
   return (
     <section className="grid gap-6 xl:grid-cols-[360px_minmax(0,1fr)]">
@@ -73,7 +83,10 @@ export function MessagesDashboard({ dialogs }: MessagesDashboardProps) {
             id="dialogs-search"
             type="search"
             value={searchQuery}
-            onChange={(event) => setSearchQuery(event.target.value)}
+            onChange={(event) => {
+              setSearchQuery(event.target.value);
+              setCurrentPage(1);
+            }}
             placeholder="Поиск по имени, chat ID или сообщению"
             className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-slate-400 focus:outline-none"
           />
@@ -88,7 +101,10 @@ export function MessagesDashboard({ dialogs }: MessagesDashboardProps) {
                 isActive={dialog.telegram_chat_id === selectedDialog?.telegram_chat_id}
                 lastMessageAt={dialog.lastMessageAt}
                 messageCount={dialog.messageCount}
-                onSelect={() => setSelectedChatId(dialog.telegram_chat_id)}
+                onSelect={() => {
+                  setSelectedChatId(dialog.telegram_chat_id);
+                  setCurrentPage(1);
+                }}
                 preview={formatMessagePreview(dialog.lastMessageText)}
                 username={dialog.displayName}
               />
@@ -116,7 +132,7 @@ export function MessagesDashboard({ dialogs }: MessagesDashboardProps) {
             </h2>
             <p className="mt-2 text-sm leading-6 text-slate-500">
               {selectedDialog
-                ? "Панель показывает выбранный диалог и последние сообщения без редактирования."
+                ? "Панель показывает выбранный диалог и сообщения постранично без редактирования."
                 : "Пока нет данных. Секция оставлена как readonly-заглушка под будущую логику."}
             </p>
           </div>
@@ -145,10 +161,34 @@ export function MessagesDashboard({ dialogs }: MessagesDashboardProps) {
 
         <div className="mt-6 space-y-3">
           <div className="flex items-center justify-between">
-            <h3 className="text-base font-semibold text-slate-900">Последние сообщения</h3>
+            <h3 className="text-base font-semibold text-slate-900">Сообщения диалога</h3>
             <span className="text-sm text-slate-500">
               {selectedDialog ? `${selectedDialog.messageCount} всего` : "0 всего"}
             </span>
+          </div>
+
+          <div className="flex items-center justify-between gap-3 rounded-2xl bg-slate-50 px-4 py-3">
+            <button
+              type="button"
+              onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+              disabled={safeCurrentPage <= 1 || !selectedDialog}
+              className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Назад
+            </button>
+
+            <span className="text-sm text-slate-600">
+              {safeCurrentPage} / {totalPages}
+            </span>
+
+            <button
+              type="button"
+              onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+              disabled={safeCurrentPage >= totalPages || !selectedDialog}
+              className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Вперед
+            </button>
           </div>
 
           {selectedMessages.length > 0 ? (
