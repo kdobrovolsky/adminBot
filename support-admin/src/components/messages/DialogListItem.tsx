@@ -28,10 +28,10 @@ export function DialogListItem({
       onClick={onSelect}
       aria-pressed={isActive}
       className={[
-        "group relative block w-full overflow-hidden rounded-[1.55rem] border px-4 py-4 text-left transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/70 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950",
+        "group relative block w-full overflow-hidden rounded-[1.35rem] border px-3.5 py-3.5 text-left transition-all duration-200 active:scale-[0.995] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/70 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950 sm:rounded-[1.55rem] sm:px-4 sm:py-4",
         isActive
           ? "border-sky-400/50 bg-[linear-gradient(160deg,rgba(8,47,73,0.96),rgba(15,23,42,0.98))] text-white shadow-[0_24px_60px_rgba(2,132,199,0.22)]"
-          : "border-slate-800/80 bg-slate-950/60 text-slate-100 shadow-[0_14px_36px_rgba(2,6,23,0.24)] hover:-translate-y-0.5 hover:border-slate-700 hover:bg-slate-900/85 hover:shadow-[0_18px_40px_rgba(2,6,23,0.34)]",
+          : "border-slate-800/80 bg-[linear-gradient(180deg,rgba(2,6,23,0.74),rgba(15,23,42,0.64))] text-slate-100 shadow-[0_14px_36px_rgba(2,6,23,0.24)] hover:-translate-y-0.5 hover:border-slate-700 hover:bg-[linear-gradient(180deg,rgba(15,23,42,0.88),rgba(15,23,42,0.74))] hover:shadow-[0_18px_40px_rgba(2,6,23,0.34)]",
       ].join(" ")}
     >
       <div
@@ -41,7 +41,7 @@ export function DialogListItem({
         ].join(" ")}
       />
 
-      <div className="flex items-start justify-between gap-3">
+      <div className="flex items-start justify-between gap-2.5 sm:gap-3">
         <div className="min-w-0">
           <p className="truncate text-[15px] font-semibold tracking-[-0.02em] text-inherit">
             {username || "Без username"}
@@ -59,7 +59,7 @@ export function DialogListItem({
           </p>
         </div>
 
-        <div className="flex flex-col items-end gap-2">
+        <div className="flex shrink-0 flex-col items-end gap-2">
           <span
             className={[
               "rounded-full px-2.5 py-1 text-[11px] font-semibold",
@@ -76,10 +76,10 @@ export function DialogListItem({
         </div>
       </div>
 
-      <div className="mt-4 rounded-[1.1rem] border border-white/5 bg-black/10 px-3 py-3">
+      <div className="mt-3 rounded-[1rem] border border-white/5 bg-black/10 px-3 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)] sm:mt-4 sm:rounded-[1.1rem]">
         <p
           className={[
-            "line-clamp-2 text-sm leading-6",
+            "line-clamp-2 text-sm leading-6 transition-colors",
             isActive ? "text-slate-100" : "text-slate-400",
           ].join(" ")}
         >
