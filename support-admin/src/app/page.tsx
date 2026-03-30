@@ -94,33 +94,45 @@ export default async function Home() {
   const latestMessageAt = messages[0]?.created_at ?? null;
 
   return (
-    <main className="min-h-screen bg-slate-100 px-4 py-10 text-slate-900 sm:px-6 lg:px-8">
+    <main className="min-h-screen px-4 py-8 text-slate-100 sm:px-6 lg:px-8 lg:py-10">
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-8">
-        <section className="rounded-[2rem] bg-slate-900 px-6 py-8 text-white shadow-xl sm:px-8 sm:py-10">
-          <p className="text-sm font-medium uppercase tracking-[0.24em] text-slate-300">
-            SupportBot Admin
-          </p>
-          <h1 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl lg:text-5xl">
-            Центр сообщений
-          </h1>
-          <p className="mt-4 max-w-3xl text-sm leading-6 text-slate-300 sm:text-base">
-            Readonly-страница для просмотра диалогов из Telegram в формате dashboard.
-            Слева список диалогов, справа панель выбранной переписки и базовые метрики
-            сверху.
-          </p>
+        <section className="relative overflow-hidden rounded-[2.5rem] border border-slate-800/80 bg-[linear-gradient(145deg,#020617_0%,#0f172a_55%,#111827_100%)] px-6 py-8 text-white shadow-[0_30px_100px_rgba(2,6,23,0.55)] sm:px-8 sm:py-10 lg:px-10">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(56,189,248,0.22),transparent_24%),radial-gradient(circle_at_bottom_left,rgba(14,165,233,0.16),transparent_24%)]" />
+          <div className="relative">
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="rounded-full border border-sky-400/20 bg-sky-400/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.32em] text-sky-100">
+                SupportBot Admin
+              </span>
+              <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] font-medium text-slate-400">
+                Premium readonly dashboard
+              </span>
+            </div>
+
+            <h1 className="mt-6 max-w-4xl text-4xl font-semibold tracking-[-0.06em] text-white sm:text-5xl lg:text-[3.6rem]">
+              Центр сообщений поддержки
+            </h1>
+            <p className="mt-4 max-w-3xl text-[15px] leading-8 text-slate-400 sm:text-base">
+              Современная readonly-админка для просмотра диалогов из Telegram: слева
+              навигация по чатам, справа детальный просмотр выбранной переписки и ключевые
+              метрики сверху.
+            </p>
+          </div>
         </section>
 
         {errorMessage ? (
-          <section className="rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-700">
-            {errorMessage}
+          <section className="rounded-[1.75rem] border border-red-500/20 bg-red-950/35 px-5 py-4">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-red-300">
+              Data Error
+            </p>
+            <p className="mt-2 text-sm leading-6 text-red-200">{errorMessage}</p>
           </section>
         ) : null}
 
-        <section className="grid gap-4 lg:grid-cols-2">
+        <section className="grid gap-4 xl:grid-cols-2">
           <StatCard
             label="Всего сообщений"
             value={messages.length.toString()}
-            description="Общее количество записей, доступных в readonly-админке."
+            description="Общее количество записей, доступных в readonly-админке сообщений."
           />
           <StatCard
             label="Активные диалоги"

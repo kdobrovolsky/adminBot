@@ -6,14 +6,17 @@ type StatCardProps = {
 
 export function StatCard({ description, label, value }: StatCardProps) {
   return (
-    <article className="rounded-[1.75rem] border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-      <p className="text-sm font-medium uppercase tracking-[0.18em] text-slate-400">
+    <article className="relative overflow-hidden rounded-[1.6rem] border border-slate-800/80 bg-[linear-gradient(180deg,rgba(15,23,42,0.9),rgba(15,23,42,0.78))] p-5 shadow-[0_18px_48px_rgba(2,6,23,0.38)] backdrop-blur">
+      <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-sky-400/70 to-transparent" />
+      <div className="absolute right-0 top-0 h-24 w-24 rounded-full bg-sky-500/10 blur-3xl" />
+
+      <p className="text-[10px] font-semibold uppercase tracking-[0.32em] text-slate-500">
         {label}
       </p>
-      <p className="mt-4 text-3xl font-semibold tracking-tight text-slate-900 sm:text-4xl">
+      <p className="mt-4 text-3xl font-semibold tracking-[-0.05em] text-slate-50 sm:text-[2.15rem]">
         {value}
       </p>
-      <p className="mt-3 text-sm leading-6 text-slate-500">{description}</p>
+      <p className="mt-3 max-w-sm text-sm leading-6 text-slate-400">{description}</p>
     </article>
   );
 }
