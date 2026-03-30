@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { DialogListItem } from "@/components/messages/DialogListItem";
 import type { DialogViewModel } from "@/types/message";
 
@@ -16,6 +17,9 @@ const dateFormatter = new Intl.DateTimeFormat("ru-RU", {
 const MESSAGES_PER_PAGE = 5;
 const secondaryButtonClassName =
   "rounded-xl border border-slate-700/90 bg-[linear-gradient(180deg,rgba(15,23,42,0.92),rgba(15,23,42,0.76))] px-3.5 py-2 text-[13px] font-semibold text-slate-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] transition-all duration-200 hover:-translate-y-0.5 hover:border-sky-500/40 hover:bg-[linear-gradient(180deg,rgba(30,41,59,0.96),rgba(15,23,42,0.88))] hover:text-white hover:shadow-[0_12px_24px_rgba(2,132,199,0.12)] active:translate-y-0 active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/70 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950 disabled:translate-y-0 disabled:scale-100 disabled:cursor-not-allowed disabled:border-slate-800 disabled:bg-slate-900/70 disabled:text-slate-500 disabled:shadow-none";
+const compactButtonClassName =
+  "rounded-full border border-slate-700/90 bg-[linear-gradient(180deg,rgba(15,23,42,0.92),rgba(15,23,42,0.76))] px-3.5 py-1.5 text-[11px] font-semibold text-slate-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] transition-all duration-200 hover:-translate-y-0.5 hover:border-sky-500/40 hover:bg-[linear-gradient(180deg,rgba(30,41,59,0.96),rgba(15,23,42,0.88))] hover:text-white hover:shadow-[0_12px_24px_rgba(2,132,199,0.12)] active:translate-y-0 active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/70 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950 disabled:translate-y-0 disabled:scale-100 disabled:cursor-not-allowed disabled:border-slate-800 disabled:bg-slate-900/70 disabled:text-slate-500 disabled:shadow-none";
+
 function formatMessagePreview(text: string | null) {
   if (!text) {
     return "Пустое сообщение";
@@ -25,6 +29,8 @@ function formatMessagePreview(text: string | null) {
 }
 
 export function MessagesDashboard({ dialogs }: MessagesDashboardProps) {
+  const router = useRouter();
+  const [isRefreshing, startTransition] = useTransition();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedChatId, setSelectedChatId] = useState<
     DialogViewModel["telegram_chat_id"] | null
@@ -72,14 +78,19 @@ export function MessagesDashboard({ dialogs }: MessagesDashboardProps) {
             <h2 className="mt-2 text-[1.35rem] font-semibold tracking-[-0.03em] text-slate-50">
               Диалоги
             </h2>
-            <p className="mt-2 max-w-sm text-sm leading-6 text-slate-400">
-              Последние переписки из Telegram с быстрым поиском и ручным обновлением.
-            </p>
           </div>
           <div className="flex shrink-0 items-center gap-2">
             <span className="rounded-full border border-slate-800 bg-slate-900/90 px-3 py-1 text-[11px] font-semibold text-slate-400">
               {filteredDialogs.length}
             </span>
+            <button
+              type="button"
+              onClick={() => startTransition(() => router.refresh())}
+              disabled={isRefreshing}
+              className={compactButtonClassName}
+            >
+              {isRefreshing ? "Обновление..." : "Обновить"}
+            </button>
           </div>
         </div>
 
@@ -148,27 +159,22 @@ export function MessagesDashboard({ dialogs }: MessagesDashboardProps) {
             <h2 className="mt-2 text-[1.6rem] font-semibold tracking-[-0.045em] text-slate-50 sm:text-[1.9rem]">
               {selectedDialog?.displayName || "Выберите диалог"}
             </h2>
-            <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-400">
-              {selectedDialog
-                ? "Readonly-представление переписки с чистой навигацией по сообщениям и удобным обзором активности."
-                : "Правая панель готова для просмотра выбранного диалога, когда он появится в списке."}
-            </p>
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-2 lg:max-w-[22rem]">
-            <div className="rounded-[1.2rem] border border-slate-800 bg-slate-950/65 px-4 py-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] sm:rounded-[1.4rem]">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-slate-500">
+          <div className="flex flex-wrap items-start gap-2.5 lg:max-w-[24rem] lg:justify-end">
+            <div className="min-w-[10.5rem] rounded-[0.95rem] border border-slate-800/90 bg-slate-950/45 px-3 py-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]">
+              <p className="text-[9px] font-semibold uppercase tracking-[0.24em] text-slate-500">
                 Chat ID
               </p>
-              <p className="mt-2 break-all font-mono text-sm text-slate-200">
+              <p className="mt-1.5 break-all font-mono text-[12px] text-slate-300">
                 {selectedDialog ? selectedDialog.telegram_chat_id : "—"}
               </p>
             </div>
-            <div className="rounded-[1.2rem] border border-slate-800 bg-slate-950/65 px-4 py-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] sm:rounded-[1.4rem]">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-slate-500">
+            <div className="min-w-[10.5rem] rounded-[0.95rem] border border-slate-800/90 bg-slate-950/45 px-3 py-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]">
+              <p className="text-[9px] font-semibold uppercase tracking-[0.24em] text-slate-500">
                 Последняя активность
               </p>
-              <p className="mt-2 text-sm text-slate-200">
+              <p className="mt-1.5 text-[12px] text-slate-300">
                 {selectedDialog
                   ? dateFormatter.format(new Date(selectedDialog.lastMessageAt))
                   : "—"}
@@ -188,30 +194,6 @@ export function MessagesDashboard({ dialogs }: MessagesDashboardProps) {
                   ? `${selectedDialog.messageCount} сообщений в диалоге`
                   : "Нет выбранного диалога"}
               </p>
-            </div>
-
-            <div className="flex flex-wrap items-center justify-between gap-2 rounded-[1.2rem] border border-slate-800 bg-slate-950/65 px-3 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] sm:gap-3 sm:rounded-[1.4rem] lg:min-w-[240px] lg:flex-nowrap">
-              <button
-                type="button"
-                onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
-                disabled={safeCurrentPage <= 1 || !selectedDialog}
-                className={`${secondaryButtonClassName} min-w-[104px] flex-1 sm:flex-none`}
-              >
-                Назад
-              </button>
-
-              <span className="order-first w-full text-center text-sm font-medium text-slate-400 sm:order-none sm:w-auto">
-                {safeCurrentPage} / {totalPages}
-              </span>
-
-              <button
-                type="button"
-                onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
-                disabled={safeCurrentPage >= totalPages || !selectedDialog}
-                className={`${secondaryButtonClassName} min-w-[104px] flex-1 sm:flex-none`}
-              >
-                Вперед
-              </button>
             </div>
           </div>
 
@@ -240,6 +222,30 @@ export function MessagesDashboard({ dialogs }: MessagesDashboardProps) {
                   </p>
                 </article>
               ))}
+
+              <div className="flex flex-wrap items-center justify-between gap-2 rounded-[1.2rem] border border-slate-800 bg-slate-950/65 px-3 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] sm:gap-3 sm:rounded-[1.4rem]">
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+                  disabled={safeCurrentPage <= 1 || !selectedDialog}
+                  className={`${secondaryButtonClassName} min-w-[104px] flex-1 sm:flex-none`}
+                >
+                  Назад
+                </button>
+
+                <span className="order-first w-full text-center text-sm font-medium text-slate-400 sm:order-none sm:w-auto">
+                  {safeCurrentPage} / {totalPages}
+                </span>
+
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+                  disabled={safeCurrentPage >= totalPages || !selectedDialog}
+                  className={`${secondaryButtonClassName} min-w-[104px] flex-1 sm:flex-none`}
+                >
+                  Вперед
+                </button>
+              </div>
             </div>
           ) : (
             <div className="rounded-[1.6rem] border border-dashed border-slate-700 bg-slate-950/60 px-5 py-12 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
