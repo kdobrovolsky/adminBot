@@ -1,0 +1,12 @@
+{
+  "private": true,
+  "scripts": {
+    "dev": "pnpm --dir support-admin dev",
+    "build": "pnpm --dir support-admin build",
+    "start": "pnpm --dir support-admin start",
+    "lint": "pnpm --dir support-admin lint"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.101.0"
+  }
+}
