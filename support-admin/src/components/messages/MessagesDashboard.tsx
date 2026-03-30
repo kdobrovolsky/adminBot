@@ -1,7 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useMemo, useState } from "react";
 import { DialogListItem } from "@/components/messages/DialogListItem";
 import type { DialogViewModel } from "@/types/message";
 
@@ -17,9 +16,6 @@ const dateFormatter = new Intl.DateTimeFormat("ru-RU", {
 const MESSAGES_PER_PAGE = 5;
 const secondaryButtonClassName =
   "rounded-xl border border-slate-700/90 bg-[linear-gradient(180deg,rgba(15,23,42,0.92),rgba(15,23,42,0.76))] px-3.5 py-2 text-[13px] font-semibold text-slate-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] transition-all duration-200 hover:-translate-y-0.5 hover:border-sky-500/40 hover:bg-[linear-gradient(180deg,rgba(30,41,59,0.96),rgba(15,23,42,0.88))] hover:text-white hover:shadow-[0_12px_24px_rgba(2,132,199,0.12)] active:translate-y-0 active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/70 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950 disabled:translate-y-0 disabled:scale-100 disabled:cursor-not-allowed disabled:border-slate-800 disabled:bg-slate-900/70 disabled:text-slate-500 disabled:shadow-none";
-const compactButtonClassName =
-  "rounded-full border border-slate-700/90 bg-[linear-gradient(180deg,rgba(15,23,42,0.92),rgba(15,23,42,0.76))] px-3.5 py-1.5 text-[11px] font-semibold text-slate-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] transition-all duration-200 hover:-translate-y-0.5 hover:border-sky-500/40 hover:bg-[linear-gradient(180deg,rgba(30,41,59,0.96),rgba(15,23,42,0.88))] hover:text-white hover:shadow-[0_12px_24px_rgba(2,132,199,0.12)] active:translate-y-0 active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/70 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950 disabled:translate-y-0 disabled:scale-100 disabled:cursor-not-allowed disabled:border-slate-800 disabled:bg-slate-900/70 disabled:text-slate-500 disabled:shadow-none";
-
 function formatMessagePreview(text: string | null) {
   if (!text) {
     return "Пустое сообщение";
@@ -29,8 +25,6 @@ function formatMessagePreview(text: string | null) {
 }
 
 export function MessagesDashboard({ dialogs }: MessagesDashboardProps) {
-  const router = useRouter();
-  const [isRefreshing, startTransition] = useTransition();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedChatId, setSelectedChatId] = useState<
     DialogViewModel["telegram_chat_id"] | null
@@ -86,14 +80,6 @@ export function MessagesDashboard({ dialogs }: MessagesDashboardProps) {
             <span className="rounded-full border border-slate-800 bg-slate-900/90 px-3 py-1 text-[11px] font-semibold text-slate-400">
               {filteredDialogs.length}
             </span>
-            <button
-              type="button"
-              onClick={() => startTransition(() => router.refresh())}
-              disabled={isRefreshing}
-              className={compactButtonClassName}
-            >
-              {isRefreshing ? "Обновление..." : "Обновить"}
-            </button>
           </div>
         </div>
 
