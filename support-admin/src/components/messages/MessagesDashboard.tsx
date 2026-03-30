@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { DialogListItem } from "@/components/messages/DialogListItem";
 import type { DialogViewModel } from "@/types/message";
 
@@ -22,12 +22,32 @@ function formatMessagePreview(text: string | null) {
 }
 
 export function MessagesDashboard({ dialogs }: MessagesDashboardProps) {
+  const [searchQuery, setSearchQuery] = useState("");
   const [selectedChatId, setSelectedChatId] = useState<
     DialogViewModel["telegram_chat_id"] | null
   >(dialogs[0]?.telegram_chat_id ?? null);
 
+  const normalizedQuery = searchQuery.trim().toLowerCase();
+  const filteredDialogs = useMemo(() => {
+    if (!normalizedQuery) {
+      return dialogs;
+    }
+
+    return dialogs.filter((dialog) => {
+      const searchableValues = [
+        dialog.displayName.toLowerCase(),
+        String(dialog.telegram_chat_id).toLowerCase(),
+        dialog.lastMessageText?.toLowerCase() ?? "",
+      ];
+
+      return searchableValues.some((value) => value.includes(normalizedQuery));
+    });
+  }, [dialogs, normalizedQuery]);
+
   const selectedDialog =
-    dialogs.find((dialog) => dialog.telegram_chat_id === selectedChatId) ?? dialogs[0] ?? null;
+    filteredDialogs.find((dialog) => dialog.telegram_chat_id === selectedChatId) ??
+    filteredDialogs[0] ??
+    null;
   const selectedMessages = selectedDialog?.messages.slice(0, 5) ?? [];
 
   return (
@@ -41,13 +61,27 @@ export function MessagesDashboard({ dialogs }: MessagesDashboardProps) {
             </p>
           </div>
           <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">
-            {dialogs.length}
+            {filteredDialogs.length}
           </span>
         </div>
 
+        <div className="mt-4">
+          <label className="sr-only" htmlFor="dialogs-search">
+            Поиск по диалогам
+          </label>
+          <input
+            id="dialogs-search"
+            type="search"
+            value={searchQuery}
+            onChange={(event) => setSearchQuery(event.target.value)}
+            placeholder="Поиск по имени, chat ID или сообщению"
+            className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-slate-400 focus:outline-none"
+          />
+        </div>
+
         <div className="mt-4 space-y-3">
-          {dialogs.length > 0 ? (
-            dialogs.map((dialog) => (
+          {filteredDialogs.length > 0 ? (
+            filteredDialogs.map((dialog) => (
               <DialogListItem
                 key={String(dialog.telegram_chat_id)}
                 chatId={dialog.telegram_chat_id}
@@ -59,6 +93,10 @@ export function MessagesDashboard({ dialogs }: MessagesDashboardProps) {
                 username={dialog.displayName}
               />
             ))
+          ) : dialogs.length > 0 ? (
+            <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-8 text-sm text-slate-500">
+              По вашему запросу диалоги не найдены.
+            </div>
           ) : (
             <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-8 text-sm text-slate-500">
               Диалоги появятся здесь, когда в базе будут сообщения.
