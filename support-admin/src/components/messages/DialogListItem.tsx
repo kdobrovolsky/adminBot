@@ -3,6 +3,7 @@ type DialogListItemProps = {
   isActive?: boolean;
   lastMessageAt: string;
   messageCount: number;
+  onSelect?: () => void;
   preview: string;
   username: string | null;
 };
@@ -17,13 +18,17 @@ export function DialogListItem({
   isActive = false,
   lastMessageAt,
   messageCount,
+  onSelect,
   preview,
   username,
 }: DialogListItemProps) {
   return (
-    <article
+    <button
+      type="button"
+      onClick={onSelect}
+      aria-pressed={isActive}
       className={[
-        "rounded-2xl border p-4 transition-colors",
+        "block w-full rounded-2xl border p-4 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2",
         isActive
           ? "border-slate-900 bg-slate-900 text-white"
           : "border-slate-200 bg-slate-50 text-slate-900",
@@ -70,6 +75,6 @@ export function DialogListItem({
       >
         {dateFormatter.format(new Date(lastMessageAt))}
       </p>
-    </article>
+    </button>
   );
 }
