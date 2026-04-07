@@ -1,7 +1,8 @@
+import { redirect } from "next/navigation";
 import { DashboardHeader } from "@/components/messages/DashboardHeader";
 import { MessagesDashboard } from "@/components/messages/MessagesDashboard";
 import { groupMessagesByDialog } from "@/lib/dialogs";
-import { getSupabaseClient } from "@/lib/supabase";
+import { createServerSupabaseClient } from "@/lib/supabase/server";
 import type { Message, MessagesResult, TelegramMessageRow } from "@/types/message";
 
 export const dynamic = "force-dynamic";
@@ -30,9 +31,9 @@ function mapMessageRow(row: TelegramMessageRow): Message | null {
 }
 
 async function loadMessagesFromTable(
+  supabase: Awaited<ReturnType<typeof createServerSupabaseClient>>,
   tableName: "messages" | "telegram_messages",
 ): Promise<MessagesResult> {
-  const supabase = getSupabaseClient();
   const query =
     tableName === "telegram_messages"
       ? supabase
@@ -64,13 +65,22 @@ async function loadMessagesFromTable(
 
 async function getMessages(): Promise<MessagesResult> {
   try {
-    const primaryResult = await loadMessagesFromTable("telegram_messages");
+    const supabase = await createServerSupabaseClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      redirect("/login");
+    }
+
+    const primaryResult = await loadMessagesFromTable(supabase, "telegram_messages");
 
     if (primaryResult.messages.length > 0 || primaryResult.errorMessage === null) {
       return primaryResult;
     }
 
-    const fallbackResult = await loadMessagesFromTable("messages");
+    const fallbackResult = await loadMessagesFromTable(supabase, "messages");
 
     if (fallbackResult.messages.length > 0 || fallbackResult.errorMessage === null) {
       return fallbackResult;
