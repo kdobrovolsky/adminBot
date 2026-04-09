@@ -2,12 +2,10 @@
 
 import Link from "next/link";
 import { useActionState } from "react";
-import {
-  initialAuthFormState,
-  loginWithStateAction,
-} from "@/app/login/actions";
+import { loginWithStateAction } from "@/app/login/actions";
 import { AuthFormMessage } from "./AuthFormMessage";
 import { AuthSubmitButton } from "./AuthSubmitButton";
+import { initialAuthFormState } from "./authFormState";
 
 export function LoginForm() {
   const [state, formAction, pending] = useActionState(
@@ -39,7 +37,7 @@ export function LoginForm() {
           type="password"
           name="password"
           autoComplete="current-password"
-          placeholder="вЂўвЂўвЂўвЂўвЂўвЂўвЂўвЂў"
+          placeholder="••••••••"
           className="w-full rounded-2xl border border-white/10 bg-slate-900/80 px-4 py-3 text-sm text-white outline-none transition focus:border-cyan-400/60 focus:bg-slate-900"
         />
       </label>
@@ -51,7 +49,7 @@ export function LoginForm() {
       />
 
       <div className="flex items-center justify-between gap-3 text-sm text-slate-400">
-        <span>Р—Р°Р±С‹Р»Рё РїР°СЂРѕР»СЊ?</span>
+        <span>Забыли пароль?</span>
         <Link href="/forgot-password" className="transition hover:text-cyan-300">
           Recovery
         </Link>

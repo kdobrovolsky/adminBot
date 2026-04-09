@@ -1,12 +1,10 @@
 "use client";
 
 import { useActionState } from "react";
-import {
-  initialAuthFormState,
-  resetPasswordWithStateAction,
-} from "@/app/login/actions";
+import { resetPasswordWithStateAction } from "@/app/login/actions";
 import { AuthFormMessage } from "./AuthFormMessage";
 import { AuthSubmitButton } from "./AuthSubmitButton";
+import { initialAuthFormState } from "./authFormState";
 
 export function ResetPasswordForm() {
   const [state, formAction, pending] = useActionState(
@@ -28,7 +26,7 @@ export function ResetPasswordForm() {
           type="password"
           name="password"
           autoComplete="new-password"
-          placeholder="вЂўвЂўвЂўвЂўвЂўвЂўвЂўвЂў"
+          placeholder="••••••••"
           className="w-full rounded-2xl border border-white/10 bg-slate-900/80 px-4 py-3 text-sm text-white outline-none transition focus:border-cyan-400/60 focus:bg-slate-900"
         />
       </label>
@@ -43,7 +41,7 @@ export function ResetPasswordForm() {
           type="password"
           name="confirmPassword"
           autoComplete="new-password"
-          placeholder="вЂўвЂўвЂўвЂўвЂўвЂўвЂўвЂў"
+          placeholder="••••••••"
           className="w-full rounded-2xl border border-white/10 bg-slate-900/80 px-4 py-3 text-sm text-white outline-none transition focus:border-cyan-400/60 focus:bg-slate-900"
         />
       </label>

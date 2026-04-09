@@ -2,19 +2,8 @@
 
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
+import type { AuthFormState } from "@/components/auth/authFormState";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
-
-export type AuthFormState = {
-  error: string | null;
-  success: string | null;
-  email: string;
-};
-
-export const initialAuthFormState: AuthFormState = {
-  error: null,
-  success: null,
-  email: "",
-};
 
 function getRequestOrigin(headersList: Headers) {
   const origin = headersList.get("origin");
@@ -56,7 +45,7 @@ export async function loginWithStateAction(
 
   if (error) {
     return {
-      error: "Неверный email или password.",
+      error: "Неверный email или пароль.",
       success: null,
       email,
     };
@@ -104,8 +93,7 @@ export async function forgotPasswordWithStateAction(
 
   return {
     error: null,
-    success:
-      "Если пользователь существует, письмо со ссылкой на сброс уже отправлено.",
+    success: "Если пользователь существует, письмо со ссылкой на сброс уже отправлено.",
     email,
   };
 }
@@ -144,8 +132,7 @@ export async function resetPasswordWithStateAction(
 
   if (!user) {
     return {
-      error:
-        "Сессия восстановления не найдена. Запросите recovery-письмо заново.",
+      error: "Сессия восстановления не найдена. Запросите recovery-письмо заново.",
       success: null,
       email: "",
     };
@@ -157,8 +144,7 @@ export async function resetPasswordWithStateAction(
 
   if (error) {
     return {
-      error:
-        "Не удалось обновить пароль. Попробуйте открыть recovery-ссылку заново.",
+      error: "Не удалось обновить пароль. Попробуйте открыть recovery-ссылку заново.",
       success: null,
       email: "",
     };

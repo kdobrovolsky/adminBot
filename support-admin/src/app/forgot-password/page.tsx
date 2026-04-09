@@ -18,7 +18,7 @@ export default function ForgotPasswordPage() {
             Recovery
           </h1>
           <p className="mt-2 text-sm leading-6 text-slate-300">
-            Р’РІРµРґРёС‚Рµ email. Supabase РѕС‚РїСЂР°РІРёС‚ РїРёСЃСЊРјРѕ СЃРѕ СЃСЃС‹Р»РєРѕР№ РЅР° СЃР±СЂРѕСЃ РїР°СЂРѕР»СЏ.
+            Введите email. Supabase отправит письмо со ссылкой на сброс пароля.
           </p>
         </div>
 

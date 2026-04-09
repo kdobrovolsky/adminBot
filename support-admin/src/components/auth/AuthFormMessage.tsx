@@ -1,4 +1,4 @@
-import type { AuthFormState } from "@/app/login/actions";
+import type { AuthFormState } from "./authFormState";
 
 type AuthFormMessageProps = {
   state: Pick<AuthFormState, "error" | "success">;

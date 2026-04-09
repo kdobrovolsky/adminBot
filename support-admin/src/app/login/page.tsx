@@ -29,8 +29,8 @@ export default async function LoginPage() {
             Login
           </h1>
           <p className="mt-2 text-sm leading-6 text-slate-300">
-            Р’РІРµРґРёС‚Рµ email Рё password РґР»СЏ РІС…РѕРґР° РІ Р°РґРјРёРЅРєСѓ. РЎРµСЃСЃРёСЏ С…СЂР°РЅРёС‚СЃСЏ РІ
-            cookie С‡РµСЂРµР· Supabase SSR.
+            Введите email и пароль для входа в админку. Сессия хранится в cookie
+            через Supabase SSR.
           </p>
         </div>
 
@@ -38,7 +38,7 @@ export default async function LoginPage() {
 
         <div className="border-t border-white/10 px-6 py-4 text-sm text-slate-400 sm:px-8">
           <Link href="/" className="transition hover:text-cyan-300">
-            РќР°Р·Р°Рґ РІ Р°РґРјРёРЅРєСѓ
+            Назад в админку
           </Link>
         </div>
       </div>

@@ -29,7 +29,7 @@ export default async function ResetPasswordPage() {
             New password
           </h1>
           <p className="mt-2 text-sm leading-6 text-slate-300">
-            РЈСЃС‚Р°РЅРѕРІРёС‚Рµ РЅРѕРІС‹Р№ РїР°СЂРѕР»СЊ РґР»СЏ Р°РєРєР°СѓРЅС‚Р° {user.email ?? ""}.
+            Установите новый пароль для аккаунта {user.email ?? ""}.
           </p>
         </div>
 
@@ -37,7 +37,7 @@ export default async function ResetPasswordPage() {
 
         <div className="border-t border-white/10 px-6 py-4 text-sm text-slate-400 sm:px-8">
           <Link href="/" className="transition hover:text-cyan-300">
-            РќР°Р·Р°Рґ РІ Р°РґРјРёРЅРєСѓ
+            Назад в админку
           </Link>
         </div>
       </div>

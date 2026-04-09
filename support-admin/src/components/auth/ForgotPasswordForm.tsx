@@ -1,12 +1,10 @@
 "use client";
 
 import { useActionState } from "react";
-import {
-  forgotPasswordWithStateAction,
-  initialAuthFormState,
-} from "@/app/login/actions";
+import { forgotPasswordWithStateAction } from "@/app/login/actions";
 import { AuthFormMessage } from "./AuthFormMessage";
 import { AuthSubmitButton } from "./AuthSubmitButton";
+import { initialAuthFormState } from "./authFormState";
 
 export function ForgotPasswordForm() {
   const [state, formAction, pending] = useActionState(
