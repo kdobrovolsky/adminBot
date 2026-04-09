@@ -4,6 +4,18 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
+export type AuthFormState = {
+  error: string | null;
+  success: string | null;
+  email: string;
+};
+
+export const initialAuthFormState: AuthFormState = {
+  error: null,
+  success: null,
+  email: "",
+};
+
 function getRequestOrigin(headersList: Headers) {
   const origin = headersList.get("origin");
 
@@ -21,12 +33,19 @@ function getRequestOrigin(headersList: Headers) {
   return `${protocol}://${host}`;
 }
 
-export async function loginAction(formData: FormData): Promise<void> {
+export async function loginWithStateAction(
+  _prevState: AuthFormState,
+  formData: FormData,
+): Promise<AuthFormState> {
   const email = formData.get("email");
   const password = formData.get("password");
 
   if (typeof email !== "string" || typeof password !== "string") {
-    redirect("/login?error=invalid-form");
+    return {
+      error: "Проверьте форму и попробуйте снова.",
+      success: null,
+      email: typeof email === "string" ? email : "",
+    };
   }
 
   const supabase = await createServerSupabaseClient();
@@ -36,7 +55,11 @@ export async function loginAction(formData: FormData): Promise<void> {
   });
 
   if (error) {
-    redirect("/login?error=invalid-credentials");
+    return {
+      error: "Неверный email или password.",
+      success: null,
+      email,
+    };
   }
 
   redirect("/");
@@ -49,30 +72,48 @@ export async function logoutAction(): Promise<void> {
   redirect("/login");
 }
 
-export async function forgotPasswordAction(formData: FormData): Promise<void> {
+export async function forgotPasswordWithStateAction(
+  _prevState: AuthFormState,
+  formData: FormData,
+): Promise<AuthFormState> {
   const email = formData.get("email");
 
   if (typeof email !== "string") {
-    redirect("/forgot-password?error=invalid-form");
+    return {
+      error: "Проверьте email и попробуйте снова.",
+      success: null,
+      email: "",
+    };
   }
 
   const supabase = await createServerSupabaseClient();
   const headersList = await headers();
   const origin = getRequestOrigin(headersList);
-  // Recovery emails must return to this app first so we can create a cookie session.
   const redirectTo = new URL("/auth/callback?next=/reset-password", origin).toString();
   const { error } = await supabase.auth.resetPasswordForEmail(email, {
     redirectTo,
   });
 
   if (error) {
-    redirect("/forgot-password?error=request-failed");
+    return {
+      error: "Не удалось отправить письмо для восстановления пароля.",
+      success: null,
+      email,
+    };
   }
 
-  redirect("/forgot-password?success=sent");
+  return {
+    error: null,
+    success:
+      "Если пользователь существует, письмо со ссылкой на сброс уже отправлено.",
+    email,
+  };
 }
 
-export async function resetPasswordAction(formData: FormData): Promise<void> {
+export async function resetPasswordWithStateAction(
+  _prevState: AuthFormState,
+  formData: FormData,
+): Promise<AuthFormState> {
   const password = formData.get("password");
   const confirmPassword = formData.get("confirmPassword");
 
@@ -81,11 +122,19 @@ export async function resetPasswordAction(formData: FormData): Promise<void> {
     typeof confirmPassword !== "string" ||
     password.length < 8
   ) {
-    redirect("/reset-password?error=invalid-password");
+    return {
+      error: "Пароль должен содержать минимум 8 символов.",
+      success: null,
+      email: "",
+    };
   }
 
   if (password !== confirmPassword) {
-    redirect("/reset-password?error=password-mismatch");
+    return {
+      error: "Пароли не совпадают.",
+      success: null,
+      email: "",
+    };
   }
 
   const supabase = await createServerSupabaseClient();
@@ -93,9 +142,13 @@ export async function resetPasswordAction(formData: FormData): Promise<void> {
     data: { user },
   } = await supabase.auth.getUser();
 
-  // Password updates are allowed only inside the recovery session.
   if (!user) {
-    redirect("/login?error=recovery-session-missing");
+    return {
+      error:
+        "Сессия восстановления не найдена. Запросите recovery-письмо заново.",
+      success: null,
+      email: "",
+    };
   }
 
   const { error } = await supabase.auth.updateUser({
@@ -103,7 +156,12 @@ export async function resetPasswordAction(formData: FormData): Promise<void> {
   });
 
   if (error) {
-    redirect("/reset-password?error=update-failed");
+    return {
+      error:
+        "Не удалось обновить пароль. Попробуйте открыть recovery-ссылку заново.",
+      success: null,
+      email: "",
+    };
   }
 
   redirect("/?passwordReset=success");
