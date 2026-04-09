@@ -1,7 +1,5 @@
 {
   "framework": "nextjs",
-  "rootDirectory": "support-admin",
   "installCommand": "pnpm install",
-  "buildCommand": "pnpm run build",
-  "outputDirectory": "support-admin/.next"
+  "buildCommand": "pnpm run build"
 }
