@@ -48,12 +48,12 @@ export function LoginForm() {
         pendingLabel="Signing in..."
       />
 
-      <div className="flex items-center justify-between gap-3 text-sm text-slate-400">
-        <span>Забыли пароль?</span>
-        <Link href="/forgot-password" className="transition hover:text-cyan-300">
-          Recovery
-        </Link>
-      </div>
+      <Link
+        href="/forgot-password"
+        className="block text-center text-sm text-slate-400 transition hover:text-cyan-300"
+      >
+        Забыли пароль?
+      </Link>
     </form>
   );
 }
