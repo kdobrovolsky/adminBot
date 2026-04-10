@@ -33,7 +33,7 @@ export function DashboardHeader({
   return (
     <section className="relative overflow-hidden rounded-[2rem] border border-slate-800/80 bg-[linear-gradient(145deg,#020617_0%,#0f172a_60%,#111827_100%)] px-5 py-5 text-white shadow-[0_30px_100px_rgba(2,6,23,0.55)] sm:rounded-[2.25rem] sm:px-7 sm:py-6 lg:px-8">
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(56,189,248,0.18),transparent_24%),radial-gradient(circle_at_bottom_left,rgba(14,165,233,0.12),transparent_24%)]" />
-      <div className="relative">
+      <div className="relative z-10">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
           <div className="max-w-2xl">
             <div className="flex flex-wrap items-center gap-3">
@@ -53,18 +53,19 @@ export function DashboardHeader({
             </p>
           </div>
 
-          <form action={logoutAction}>
+          <form action={logoutAction} className="self-start">
             <button
               type="submit"
-              className="inline-flex rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-slate-200 transition hover:border-cyan-400/40 hover:bg-cyan-400/10 hover:text-white"
+              aria-label="Выйти из аккаунта"
+              className="inline-flex min-h-11 items-center justify-center rounded-full border border-cyan-300/30 bg-cyan-300/12 px-5 py-2 text-sm font-semibold text-cyan-50 shadow-[0_12px_30px_rgba(34,211,238,0.18)] transition hover:border-cyan-200/60 hover:bg-cyan-300/20 hover:text-white"
             >
-              Logout
+              Выйти
             </button>
           </form>
         </div>
       </div>
 
-      <div className="relative mt-5 grid gap-3 sm:grid-cols-3">
+      <div className="relative z-10 mt-5 grid gap-3 sm:grid-cols-3">
         <Metric label="Всего сообщений" value={messagesCount.toString()} />
         <Metric label="Активные диалоги" value={dialogsCount.toString()} />
         <Metric label="Последнее сообщение" value={latestMessageLabel} />
