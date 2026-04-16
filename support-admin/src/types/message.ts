@@ -85,6 +85,9 @@ export type DialogViewModel = {
   lastMessageAt: string;
   lastMessageText: string | null;
   manager_auth_user_id: string | null;
+  manager_company_role?: string | null;
+  manager_first_name?: string | null;
+  manager_last_name?: string | null;
   messageCount: number;
   messages: Message[];
   outgoingMessages: number;

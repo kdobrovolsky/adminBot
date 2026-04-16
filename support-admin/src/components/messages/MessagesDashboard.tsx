@@ -64,6 +64,69 @@ function matchesDialogFilter(
   return Boolean(dialog.manager_auth_user_id && currentUserId && dialog.manager_auth_user_id !== currentUserId);
 }
 
+function getManagerDisplayName(dialog: DialogViewModel | null): string {
+  if (!dialog?.manager_auth_user_id) {
+    return "Не назначен";
+  }
+
+  const fullName = [dialog.manager_first_name?.trim(), dialog.manager_last_name?.trim()]
+    .filter(Boolean)
+    .join(" ");
+
+  return fullName || "Менеджер без имени";
+}
+
+function getOutgoingMessageLabel(dialog: DialogViewModel | null): string {
+  const firstName = dialog?.manager_first_name?.trim();
+
+  if (firstName) {
+    return `Ответ менеджера ${firstName}`;
+  }
+
+  const displayName = getManagerDisplayName(dialog);
+
+  if (displayName !== "Не назначен" && displayName !== "Менеджер без имени") {
+    return `Ответ менеджера ${displayName}`;
+  }
+
+  return "Ответ менеджера";
+}
+
+function getClientStatus(
+  dialog: DialogViewModel | null,
+  currentUserId: string | null,
+): { label: string; toneClassName: string; hint: string } {
+  if (!dialog) {
+    return {
+      label: "Нет выбранного клиента",
+      toneClassName: "border-slate-800 bg-slate-900/80 text-slate-300",
+      hint: "Выберите диалог, чтобы посмотреть текущего ответственного.",
+    };
+  }
+
+  if (!dialog.manager_auth_user_id) {
+    return {
+      label: "Без менеджера",
+      toneClassName: "border-amber-500/30 bg-amber-500/10 text-amber-200",
+      hint: "Клиент ожидает назначения в работу.",
+    };
+  }
+
+  if (currentUserId && dialog.manager_auth_user_id === currentUserId) {
+    return {
+      label: "У вас в работе",
+      toneClassName: "border-emerald-500/30 bg-emerald-500/10 text-emerald-200",
+      hint: "Вы можете отвечать клиенту и управлять диалогом.",
+    };
+  }
+
+  return {
+    label: "Назначен другому менеджеру",
+    toneClassName: "border-sky-500/30 bg-sky-500/10 text-sky-200",
+    hint: "Ответ и назначение ограничены текущим ответственным.",
+  };
+}
+
 function getReplyAvailability(
   dialog: DialogViewModel | null,
   currentUserId: string | null,
@@ -220,6 +283,8 @@ export function MessagesDashboard({ currentUserId, dialogs }: MessagesDashboardP
     selectedDialog?.messages.slice(pageStartIndex, pageStartIndex + MESSAGES_PER_PAGE) ?? [];
   const replyAvailability = getReplyAvailability(selectedDialog, currentUserId);
   const assignmentAvailability = getAssignmentAvailability(selectedDialog, currentUserId);
+  const clientStatus = getClientStatus(selectedDialog, currentUserId);
+  const assignedManagerName = getManagerDisplayName(selectedDialog);
 
   useEffect(() => {
     if (assignState.success) {
@@ -393,6 +458,47 @@ export function MessagesDashboard({ currentUserId, dialogs }: MessagesDashboardP
             </div>
           </div>
 
+          <section className="rounded-[1.5rem] border border-slate-800 bg-slate-950/55 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <p className="text-sm font-semibold text-slate-100">Ответственный менеджер</p>
+                <p className="mt-1 text-sm text-slate-400">{clientStatus.hint}</p>
+              </div>
+              <span
+                className={`rounded-full border px-3 py-1 text-[11px] font-semibold ${clientStatus.toneClassName}`}
+              >
+                {clientStatus.label}
+              </span>
+            </div>
+
+            <div className="mt-4 grid gap-3 md:grid-cols-3">
+              <div className="rounded-[1rem] border border-slate-800/90 bg-slate-950/70 px-4 py-3">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-slate-500">
+                  Менеджер
+                </p>
+                <p className="mt-2 text-sm font-semibold text-slate-100">{assignedManagerName}</p>
+              </div>
+
+              <div className="rounded-[1rem] border border-slate-800/90 bg-slate-950/70 px-4 py-3">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-slate-500">
+                  Роль
+                </p>
+                <p className="mt-2 text-sm text-slate-300">
+                  {selectedDialog?.manager_company_role || "Не указана"}
+                </p>
+              </div>
+
+              <div className="rounded-[1rem] border border-slate-800/90 bg-slate-950/70 px-4 py-3">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-slate-500">
+                  Auth User ID
+                </p>
+                <p className="mt-2 break-all font-mono text-[12px] text-slate-300">
+                  {selectedDialog?.manager_auth_user_id || "—"}
+                </p>
+              </div>
+            </div>
+          </section>
+
           <form
             ref={assignFormRef}
             action={assignAction}
@@ -472,7 +578,7 @@ export function MessagesDashboard({ currentUserId, dialogs }: MessagesDashboardP
                     <div>
                       <p className="text-[15px] font-semibold tracking-[-0.02em] text-slate-50">
                         {message.direction === "outgoing"
-                          ? "Ответ менеджера"
+                          ? getOutgoingMessageLabel(selectedDialog)
                           : message.username || "Без username"}
                       </p>
                       <p className="mt-1 text-[10px] font-semibold uppercase tracking-[0.24em] text-slate-500">
