@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { DashboardHeader } from "@/components/messages/DashboardHeader";
+import { ManagersSection } from "@/components/messages/ManagersSection";
 import { MessagesDashboard } from "@/components/messages/MessagesDashboard";
 import { buildDialogs } from "@/lib/dialogs";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
@@ -165,6 +166,7 @@ export default async function Home() {
           </section>
         ) : null}
 
+        <ManagersSection currentUserId={currentUserId} dialogs={dialogs} managers={managers} />
         <MessagesDashboard currentUserId={currentUserId} dialogs={dialogs} managers={managers} />
       </div>
     </main>
