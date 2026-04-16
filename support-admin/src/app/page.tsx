@@ -1,9 +1,15 @@
 import { redirect } from "next/navigation";
 import { DashboardHeader } from "@/components/messages/DashboardHeader";
 import { MessagesDashboard } from "@/components/messages/MessagesDashboard";
-import { groupMessagesByDialog } from "@/lib/dialogs";
+import { buildDialogs } from "@/lib/dialogs";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
-import type { Message, MessagesResult, TelegramMessageRow } from "@/types/message";
+import type {
+  ActiveChatRow,
+  DashboardDataResult,
+  DashboardStats,
+  MessageRow,
+  MessageStatsRow,
+} from "@/types/message";
 
 export const dynamic = "force-dynamic";
 
@@ -12,58 +18,29 @@ const dateFormatter = new Intl.DateTimeFormat("ru-RU", {
   timeStyle: "short",
 });
 
-function mapMessageRow(row: TelegramMessageRow): Message | null {
-  const telegramChatId = row.telegram_chat_id ?? row.chat_id;
+const emptyStats: DashboardStats = {
+  activeChatsCount: 0,
+  incomingMessages: 0,
+  outgoingMessages: 0,
+  totalMessages: 0,
+  unassignedClientsCount: 0,
+};
 
-  if (telegramChatId === null || telegramChatId === undefined) {
-    return null;
+function mapStats(row: MessageStatsRow | null | undefined): DashboardStats {
+  if (!row) {
+    return emptyStats;
   }
 
   return {
-    created_at: row.created_at,
-    telegram_chat_id: telegramChatId,
-    text: row.message_text ?? row.text ?? null,
-    first_name: row.first_name ?? null,
-    last_name: row.last_name ?? null,
-    sent_at: row.sent_at ?? null,
-    username: row.username,
+    activeChatsCount: row.active_chats_count,
+    incomingMessages: row.incoming_messages,
+    outgoingMessages: row.outgoing_messages,
+    totalMessages: row.total_messages,
+    unassignedClientsCount: row.unassigned_clients_count,
   };
 }
 
-async function loadMessagesFromTable(
-  supabase: Awaited<ReturnType<typeof createServerSupabaseClient>>,
-  tableName: "messages" | "telegram_messages",
-): Promise<MessagesResult> {
-  const query =
-    tableName === "telegram_messages"
-      ? supabase
-          .from(tableName)
-          .select(
-            "username, first_name, last_name, created_at, sent_at, chat_id, message_text",
-          )
-          .order("sent_at", { ascending: false })
-      : supabase
-          .from(tableName)
-          .select("username, created_at, chat_id, telegram_chat_id, message_text, text")
-          .order("created_at", { ascending: false });
-  const { data, error } = await query;
-
-  if (error) {
-    return {
-      errorMessage: `Не удалось загрузить сообщения из таблицы ${tableName}: ${error.message}`,
-      messages: [],
-    };
-  }
-
-  return {
-    errorMessage: null,
-    messages: (data satisfies TelegramMessageRow[])
-      .map(mapMessageRow)
-      .filter((message): message is Message => message !== null),
-  };
-}
-
-async function getMessages(): Promise<MessagesResult> {
+async function getDashboardData(): Promise<DashboardDataResult> {
   try {
     const supabase = await createServerSupabaseClient();
     const {
@@ -74,45 +51,89 @@ async function getMessages(): Promise<MessagesResult> {
       redirect("/login");
     }
 
-    const primaryResult = await loadMessagesFromTable(supabase, "telegram_messages");
+    const [activeChatsResult, messagesResult, statsResult] = await Promise.all([
+      supabase
+        .from("active_chats")
+        .select(
+          [
+            "client_id",
+            "current_manager_id",
+            "first_name",
+            "incoming_messages",
+            "last_message_at",
+            "last_message_text",
+            "last_message_sent_at",
+            "last_name",
+            "manager_auth_user_id",
+            "manager_company_role",
+            "manager_first_name",
+            "manager_last_name",
+            "outgoing_messages",
+            "telegram_chat_id",
+            "telegram_user_id",
+            "total_messages",
+            "username",
+          ].join(", "),
+        )
+        .order("last_message_at", { ascending: false }),
+      supabase
+        .from("messages")
+        .select("client_id, created_at, direction, manager_id, message_text, sent_at")
+        .order("sent_at", { ascending: false }),
+      supabase.from("message_stats").select("*").maybeSingle(),
+    ]);
 
-    if (primaryResult.messages.length > 0 || primaryResult.errorMessage === null) {
-      return primaryResult;
+    if (activeChatsResult.error) {
+      return {
+        currentUserId: user.id,
+        dialogs: [],
+        errorMessage: `Failed to load active chats: ${activeChatsResult.error.message}`,
+        stats: mapStats(statsResult.data),
+      };
     }
 
-    const fallbackResult = await loadMessagesFromTable(supabase, "messages");
-
-    if (fallbackResult.messages.length > 0 || fallbackResult.errorMessage === null) {
-      return fallbackResult;
+    if (messagesResult.error) {
+      return {
+        currentUserId: user.id,
+        dialogs: [],
+        errorMessage: `Failed to load messages: ${messagesResult.error.message}`,
+        stats: mapStats(statsResult.data),
+      };
     }
+
+    const activeChats = (activeChatsResult.data ?? []) as unknown as ActiveChatRow[];
+    const messages = (messagesResult.data ?? []) as unknown as MessageRow[];
 
     return {
-      errorMessage: primaryResult.errorMessage,
-      messages: [],
+      dialogs: buildDialogs(activeChats, messages),
+      errorMessage: null,
+      currentUserId: user.id,
+      stats: mapStats(statsResult.data),
     };
   } catch {
     return {
-      errorMessage: "Проверьте env-переменные Supabase для админки.",
-      messages: [],
+      currentUserId: null,
+      dialogs: [],
+      errorMessage: "Check Supabase environment variables for the admin app.",
+      stats: emptyStats,
     };
   }
 }
 
 export default async function Home() {
-  const { messages, errorMessage } = await getMessages();
-  const dialogs = groupMessagesByDialog(messages);
-  const latestMessageAt = messages[0]?.created_at ?? null;
+  const { currentUserId, dialogs, errorMessage, stats } = await getDashboardData();
+  const latestMessageAt = dialogs[0]?.lastMessageAt ?? null;
   const latestMessageLabel = latestMessageAt
     ? dateFormatter.format(new Date(latestMessageAt))
-    : "Пока нет данных";
+    : "No data yet";
 
   return (
     <main className="min-h-screen px-3 py-6 text-slate-100 sm:px-5 sm:py-8 lg:px-8 lg:py-10">
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 sm:gap-7 lg:gap-8">
         <DashboardHeader
-          dialogsCount={dialogs.length}
+          dialogsCount={stats.activeChatsCount || dialogs.length}
           latestMessageLabel={latestMessageLabel}
-          messagesCount={messages.length}
+          messagesCount={stats.totalMessages}
         />
 
         {errorMessage ? (
@@ -124,7 +145,7 @@ export default async function Home() {
           </section>
         ) : null}
 
-        <MessagesDashboard dialogs={dialogs} />
+        <MessagesDashboard currentUserId={currentUserId} dialogs={dialogs} />
       </div>
     </main>
   );

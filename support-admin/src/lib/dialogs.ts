@@ -1,62 +1,80 @@
-import type { DialogViewModel, Message } from "@/types/message";
+import type { ActiveChatRow, DialogViewModel, Message, MessageRow } from "@/types/message";
 
-function getDisplayName(messages: Message[]): string {
-  const usernameMessage = messages.find((message) => {
-    const username = message.username?.trim();
+function getDisplayName(chat: Pick<ActiveChatRow, "first_name" | "last_name" | "username">): string {
+  const username = chat.username?.trim();
 
-    return Boolean(username);
-  });
-
-  if (usernameMessage?.username?.trim()) {
-    return usernameMessage.username.trim();
+  if (username) {
+    return username;
   }
 
-  const firstNamedMessage = messages.find((message) => {
-    const fullName = [message.first_name?.trim(), message.last_name?.trim()]
-      .filter(Boolean)
-      .join(" ");
+  const fullName = [chat.first_name?.trim(), chat.last_name?.trim()].filter(Boolean).join(" ");
 
-    return Boolean(fullName);
-  });
-
-  if (firstNamedMessage) {
-    return [firstNamedMessage.first_name?.trim(), firstNamedMessage.last_name?.trim()]
-      .filter(Boolean)
-      .join(" ");
+  if (fullName) {
+    return fullName;
   }
 
   return "Без username";
 }
 
-export function groupMessagesByDialog(messages: Message[]): DialogViewModel[] {
-  const dialogsMap = new Map<Message["telegram_chat_id"], Message[]>();
+function getMessageTimestamp(message: Pick<Message, "created_at" | "sent_at">): string {
+  return message.sent_at ?? message.created_at;
+}
 
-  for (const message of messages) {
-    const dialogMessages = dialogsMap.get(message.telegram_chat_id);
+export function buildDialogs(activeChats: ActiveChatRow[], messageRows: MessageRow[]): DialogViewModel[] {
+  const chatByClientId = new Map(activeChats.map((chat) => [chat.client_id, chat]));
+  const messagesByClientId = new Map<number, Message[]>();
 
-    if (dialogMessages) {
-      dialogMessages.push(message);
+  for (const row of messageRows) {
+    const chat = chatByClientId.get(row.client_id);
+
+    if (!chat) {
       continue;
     }
 
-    dialogsMap.set(message.telegram_chat_id, [message]);
+    const message: Message = {
+      client_id: row.client_id,
+      created_at: row.created_at,
+      direction: row.direction,
+      first_name: chat.first_name,
+      last_name: chat.last_name,
+      manager_id: row.manager_id,
+      sent_at: row.sent_at,
+      telegram_chat_id: chat.telegram_chat_id,
+      text: row.message_text,
+      username: chat.username,
+    };
+    const clientMessages = messagesByClientId.get(row.client_id);
+
+    if (clientMessages) {
+      clientMessages.push(message);
+      continue;
+    }
+
+    messagesByClientId.set(row.client_id, [message]);
   }
 
-  return [...dialogsMap.entries()]
-    .map(([telegram_chat_id, dialogMessages]): DialogViewModel => {
-      const messagesByDate = [...dialogMessages].sort(
+  return activeChats
+    .map((chat): DialogViewModel => {
+      const messages = [...(messagesByClientId.get(chat.client_id) ?? [])].sort(
         (left, right) =>
-          new Date(right.created_at).getTime() - new Date(left.created_at).getTime(),
+          new Date(getMessageTimestamp(right)).getTime() - new Date(getMessageTimestamp(left)).getTime(),
       );
-      const lastMessage = messagesByDate[0];
+      const lastMessage = messages[0];
+      const lastMessageAt =
+        chat.last_message_at ?? chat.last_message_sent_at ?? lastMessage?.sent_at ?? lastMessage?.created_at;
 
       return {
-        telegram_chat_id,
-        displayName: getDisplayName(messagesByDate),
-        lastMessageAt: lastMessage.created_at,
-        lastMessageText: lastMessage.text,
-        messageCount: messagesByDate.length,
-        messages: messagesByDate,
+        client_id: chat.client_id,
+        current_manager_id: chat.current_manager_id,
+        displayName: getDisplayName(chat),
+        incomingMessages: chat.incoming_messages,
+        lastMessageAt: lastMessageAt ?? new Date(0).toISOString(),
+        lastMessageText: chat.last_message_text ?? lastMessage?.text ?? null,
+        manager_auth_user_id: chat.manager_auth_user_id,
+        messageCount: chat.total_messages ?? messages.length,
+        messages,
+        outgoingMessages: chat.outgoing_messages,
+        telegram_chat_id: chat.telegram_chat_id,
       };
     })
     .sort(

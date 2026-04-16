@@ -1,11 +1,13 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useActionState, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { sendManagerMessageFormAction } from "@/app/actions";
 import { DialogListItem } from "@/components/messages/DialogListItem";
-import type { DialogViewModel } from "@/types/message";
+import type { ActionResult, DialogViewModel } from "@/types/message";
 
 type MessagesDashboardProps = {
+  currentUserId: string | null;
   dialogs: DialogViewModel[];
 };
 
@@ -13,6 +15,11 @@ const dateFormatter = new Intl.DateTimeFormat("ru-RU", {
   dateStyle: "medium",
   timeStyle: "short",
 });
+
+const initialReplyState: ActionResult = {
+  error: null,
+  success: null,
+};
 
 const MESSAGES_PER_PAGE = 5;
 const secondaryButtonClassName =
@@ -28,13 +35,56 @@ function formatMessagePreview(text: string | null) {
   return text.length > 96 ? `${text.slice(0, 96)}...` : text;
 }
 
-export function MessagesDashboard({ dialogs }: MessagesDashboardProps) {
+function getReplyAvailability(
+  dialog: DialogViewModel | null,
+  currentUserId: string | null,
+): { canReply: boolean; hint: string } {
+  if (!dialog) {
+    return {
+      canReply: false,
+      hint: "Сначала выберите диалог.",
+    };
+  }
+
+  if (!currentUserId) {
+    return {
+      canReply: false,
+      hint: "Не удалось определить текущего менеджера.",
+    };
+  }
+
+  if (!dialog.manager_auth_user_id) {
+    return {
+      canReply: false,
+      hint: "Клиент еще не назначен. Сначала возьмите его в работу.",
+    };
+  }
+
+  if (dialog.manager_auth_user_id !== currentUserId) {
+    return {
+      canReply: false,
+      hint: "Отвечать можно только клиенту, назначенному текущему менеджеру.",
+    };
+  }
+
+  return {
+    canReply: true,
+    hint: "Ответ будет отправлен клиенту от имени менеджера.",
+  };
+}
+
+export function MessagesDashboard({ currentUserId, dialogs }: MessagesDashboardProps) {
+  const formRef = useRef<HTMLFormElement>(null);
   const router = useRouter();
   const [isRefreshing, startTransition] = useTransition();
+  const [replyState, replyAction, isSending] = useActionState(
+    sendManagerMessageFormAction,
+    initialReplyState,
+  );
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedChatId, setSelectedChatId] = useState<
-    DialogViewModel["telegram_chat_id"] | null
-  >(dialogs[0]?.telegram_chat_id ?? null);
+  const [selectedChatId, setSelectedChatId] = useState<DialogViewModel["telegram_chat_id"] | null>(
+    dialogs[0]?.telegram_chat_id ?? null,
+  );
   const [currentPage, setCurrentPage] = useState(1);
 
   const normalizedQuery = searchQuery.trim().toLowerCase();
@@ -66,6 +116,14 @@ export function MessagesDashboard({ dialogs }: MessagesDashboardProps) {
   const pageStartIndex = (safeCurrentPage - 1) * MESSAGES_PER_PAGE;
   const selectedMessages =
     selectedDialog?.messages.slice(pageStartIndex, pageStartIndex + MESSAGES_PER_PAGE) ?? [];
+  const replyAvailability = getReplyAvailability(selectedDialog, currentUserId);
+
+  useEffect(() => {
+    if (replyState.success) {
+      formRef.current?.reset();
+      startTransition(() => router.refresh());
+    }
+  }, [replyState.success, router, startTransition]);
 
   return (
     <section className="grid gap-6 xl:grid-cols-[360px_minmax(0,1fr)] 2xl:grid-cols-[380px_minmax(0,1fr)]">
@@ -197,6 +255,52 @@ export function MessagesDashboard({ dialogs }: MessagesDashboardProps) {
             </div>
           </div>
 
+          <form
+            ref={formRef}
+            action={replyAction}
+            className="rounded-[1.5rem] border border-slate-800 bg-slate-950/55 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]"
+          >
+            <div className="flex flex-col gap-3">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-slate-100">Ответ менеджера</p>
+                  <p className="mt-1 text-sm text-slate-400">{replyAvailability.hint}</p>
+                </div>
+              </div>
+
+              {replyState.error ? (
+                <div className="rounded-2xl border border-red-500/25 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+                  {replyState.error}
+                </div>
+              ) : null}
+
+              {replyState.success ? (
+                <div className="rounded-2xl border border-emerald-500/25 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-200">
+                  {replyState.success}
+                </div>
+              ) : null}
+
+              <input type="hidden" name="clientId" value={selectedDialog?.client_id ?? ""} />
+              <textarea
+                name="text"
+                rows={4}
+                disabled={!replyAvailability.canReply || isSending}
+                placeholder="Введите текст ответа"
+                className="w-full resize-y rounded-[1.2rem] border border-slate-800 bg-slate-950/80 px-4 py-3 text-sm text-slate-100 outline-none transition placeholder:text-slate-500 focus:border-sky-400/60 disabled:cursor-not-allowed disabled:text-slate-500"
+              />
+
+              <div className="flex justify-end">
+                <button
+                  type="submit"
+                  disabled={!replyAvailability.canReply || isSending}
+                  className={`${secondaryButtonClassName} min-w-[140px]`}
+                >
+                  {isSending ? "Отправка..." : "Отправить"}
+                </button>
+              </div>
+            </div>
+          </form>
+
           {selectedMessages.length > 0 ? (
             <div className="space-y-3">
               {selectedMessages.map((message) => (
@@ -207,14 +311,16 @@ export function MessagesDashboard({ dialogs }: MessagesDashboardProps) {
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div>
                       <p className="text-[15px] font-semibold tracking-[-0.02em] text-slate-50">
-                        {message.username || "Без username"}
+                        {message.direction === "outgoing"
+                          ? "Ответ менеджера"
+                          : message.username || "Без username"}
                       </p>
                       <p className="mt-1 text-[10px] font-semibold uppercase tracking-[0.24em] text-slate-500">
-                        Telegram Message
+                        {message.direction === "outgoing" ? "Исходящее сообщение" : "Telegram Message"}
                       </p>
                     </div>
                     <p className="text-[11px] text-slate-500">
-                      {dateFormatter.format(new Date(message.created_at))}
+                      {dateFormatter.format(new Date(message.sent_at ?? message.created_at))}
                     </p>
                   </div>
                   <p className="mt-4 whitespace-pre-wrap break-words text-[15px] leading-7 text-slate-300">
