@@ -6,12 +6,12 @@ const PUBLIC_ROUTES = new Set(["/login", "/forgot-password", "/auth/callback"]);
 const GUEST_ONLY_ROUTES = new Set(["/login", "/forgot-password"]);
 
 export async function updateSession(request: NextRequest) {
-  const { supabaseAnonKey, supabaseUrl } = getSupabaseConfig();
+  const { supabasePublishableKey, supabaseUrl } = getSupabaseConfig();
   let response = NextResponse.next({
     request,
   });
 
-  const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
+  const supabase = createServerClient(supabaseUrl, supabasePublishableKey, {
     cookies: {
       getAll() {
         return request.cookies.getAll();

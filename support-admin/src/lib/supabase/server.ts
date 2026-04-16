@@ -4,9 +4,9 @@ import { getSupabaseConfig } from "./config";
 
 export async function createServerSupabaseClient() {
   const cookieStore = await cookies();
-  const { supabaseAnonKey, supabaseUrl } = getSupabaseConfig();
+  const { supabasePublishableKey, supabaseUrl } = getSupabaseConfig();
 
-  return createServerClient(supabaseUrl, supabaseAnonKey, {
+  return createServerClient(supabaseUrl, supabasePublishableKey, {
     cookies: {
       getAll() {
         return cookieStore.getAll();

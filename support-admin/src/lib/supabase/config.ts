@@ -1,16 +1,17 @@
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseAnonKey =
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? process.env.NEXT_SB_SECRET;
+const supabasePublishableKey =
+  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ??
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
 export function getSupabaseConfig() {
-  if (!supabaseUrl || !supabaseAnonKey) {
+  if (!supabaseUrl || !supabasePublishableKey) {
     throw new Error(
-      "Missing NEXT_PUBLIC_SUPABASE_URL and a Supabase key. Set NEXT_PUBLIC_SUPABASE_ANON_KEY, or NEXT_SB_SECRET for server-only fallback.",
+      "Missing NEXT_PUBLIC_SUPABASE_URL and a client key. Set NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY or legacy NEXT_PUBLIC_SUPABASE_ANON_KEY.",
     );
   }
 
   return {
-    supabaseAnonKey,
+    supabasePublishableKey,
     supabaseUrl,
   };
 }

@@ -2,7 +2,7 @@
 
 import { useActionState, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { sendManagerMessageFormAction } from "@/app/actions";
+import { sendManagerMessageFormAction, takeClientInWorkFormAction } from "@/app/actions";
 import { DialogListItem } from "@/components/messages/DialogListItem";
 import type { ActionResult, DialogViewModel } from "@/types/message";
 
@@ -11,12 +11,14 @@ type MessagesDashboardProps = {
   dialogs: DialogViewModel[];
 };
 
+type DialogFilterId = "all" | "mine" | "unassigned" | "assignedToOthers";
+
 const dateFormatter = new Intl.DateTimeFormat("ru-RU", {
   dateStyle: "medium",
   timeStyle: "short",
 });
 
-const initialReplyState: ActionResult = {
+const initialActionState: ActionResult = {
   error: null,
   success: null,
 };
@@ -27,12 +29,39 @@ const secondaryButtonClassName =
 const compactButtonClassName =
   "rounded-full border border-slate-700/90 bg-[linear-gradient(180deg,rgba(15,23,42,0.92),rgba(15,23,42,0.76))] px-3.5 py-1.5 text-[11px] font-semibold text-slate-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] transition-all duration-200 hover:-translate-y-0.5 hover:border-sky-500/40 hover:bg-[linear-gradient(180deg,rgba(30,41,59,0.96),rgba(15,23,42,0.88))] hover:text-white hover:shadow-[0_12px_24px_rgba(2,132,199,0.12)] active:translate-y-0 active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/70 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950 disabled:translate-y-0 disabled:scale-100 disabled:cursor-not-allowed disabled:border-slate-800 disabled:bg-slate-900/70 disabled:text-slate-500 disabled:shadow-none";
 
+const dialogFilters: Array<{ id: DialogFilterId; label: string }> = [
+  { id: "all", label: "Все" },
+  { id: "mine", label: "Мои" },
+  { id: "unassigned", label: "Без менеджера" },
+  { id: "assignedToOthers", label: "Назначены другим" },
+];
+
 function formatMessagePreview(text: string | null) {
   if (!text) {
     return "Пустое сообщение";
   }
 
   return text.length > 96 ? `${text.slice(0, 96)}...` : text;
+}
+
+function matchesDialogFilter(
+  dialog: DialogViewModel,
+  filterId: DialogFilterId,
+  currentUserId: string | null,
+): boolean {
+  if (filterId === "all") {
+    return true;
+  }
+
+  if (filterId === "mine") {
+    return Boolean(currentUserId) && dialog.manager_auth_user_id === currentUserId;
+  }
+
+  if (filterId === "unassigned") {
+    return !dialog.manager_auth_user_id;
+  }
+
+  return Boolean(dialog.manager_auth_user_id && currentUserId && dialog.manager_auth_user_id !== currentUserId);
 }
 
 function getReplyAvailability(
@@ -73,14 +102,83 @@ function getReplyAvailability(
   };
 }
 
+function getAssignmentAvailability(
+  dialog: DialogViewModel | null,
+  currentUserId: string | null,
+): { canTake: boolean; hint: string; statusLabel: string } {
+  if (!dialog) {
+    return {
+      canTake: false,
+      hint: "Сначала выберите диалог.",
+      statusLabel: "Нет выбранного клиента",
+    };
+  }
+
+  if (!currentUserId) {
+    return {
+      canTake: false,
+      hint: "Не удалось определить текущего менеджера.",
+      statusLabel: "Менеджер не определен",
+    };
+  }
+
+  if (!dialog.manager_auth_user_id) {
+    return {
+      canTake: true,
+      hint: "Клиент пока не назначен. Можно взять его в работу.",
+      statusLabel: "Клиент не назначен",
+    };
+  }
+
+  if (dialog.manager_auth_user_id === currentUserId) {
+    return {
+      canTake: false,
+      hint: "Этот клиент уже назначен вам.",
+      statusLabel: "Уже у вас в работе",
+    };
+  }
+
+  return {
+    canTake: false,
+    hint: "Клиент уже назначен другому менеджеру.",
+    statusLabel: "Назначен другому менеджеру",
+  };
+}
+
+function ActionMessage({ state }: { state: ActionResult }) {
+  if (!state.error && !state.success) {
+    return null;
+  }
+
+  const isSuccess = Boolean(state.success);
+
+  return (
+    <div
+      className={`rounded-2xl px-4 py-3 text-sm ${
+        isSuccess
+          ? "border border-emerald-500/25 bg-emerald-500/10 text-emerald-200"
+          : "border border-red-500/25 bg-red-500/10 text-red-200"
+      }`}
+    >
+      {state.success ?? state.error}
+    </div>
+  );
+}
+
 export function MessagesDashboard({ currentUserId, dialogs }: MessagesDashboardProps) {
-  const formRef = useRef<HTMLFormElement>(null);
+  const assignFormRef = useRef<HTMLFormElement>(null);
+  const replyFormRef = useRef<HTMLFormElement>(null);
   const router = useRouter();
   const [isRefreshing, startTransition] = useTransition();
+  const [assignState, assignAction, isAssigning] = useActionState(
+    takeClientInWorkFormAction,
+    initialActionState,
+  );
   const [replyState, replyAction, isSending] = useActionState(
     sendManagerMessageFormAction,
-    initialReplyState,
+    initialActionState,
   );
+  const [activeFilter, setActiveFilter] = useState<DialogFilterId>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedChatId, setSelectedChatId] = useState<DialogViewModel["telegram_chat_id"] | null>(
     dialogs[0]?.telegram_chat_id ?? null,
@@ -89,11 +187,15 @@ export function MessagesDashboard({ currentUserId, dialogs }: MessagesDashboardP
 
   const normalizedQuery = searchQuery.trim().toLowerCase();
   const filteredDialogs = useMemo(() => {
-    if (!normalizedQuery) {
-      return dialogs;
-    }
-
     return dialogs.filter((dialog) => {
+      if (!matchesDialogFilter(dialog, activeFilter, currentUserId)) {
+        return false;
+      }
+
+      if (!normalizedQuery) {
+        return true;
+      }
+
       const searchableValues = [
         dialog.displayName.toLowerCase(),
         String(dialog.telegram_chat_id).toLowerCase(),
@@ -102,7 +204,7 @@ export function MessagesDashboard({ currentUserId, dialogs }: MessagesDashboardP
 
       return searchableValues.some((value) => value.includes(normalizedQuery));
     });
-  }, [dialogs, normalizedQuery]);
+  }, [activeFilter, currentUserId, dialogs, normalizedQuery]);
 
   const selectedDialog =
     filteredDialogs.find((dialog) => dialog.telegram_chat_id === selectedChatId) ??
@@ -117,10 +219,18 @@ export function MessagesDashboard({ currentUserId, dialogs }: MessagesDashboardP
   const selectedMessages =
     selectedDialog?.messages.slice(pageStartIndex, pageStartIndex + MESSAGES_PER_PAGE) ?? [];
   const replyAvailability = getReplyAvailability(selectedDialog, currentUserId);
+  const assignmentAvailability = getAssignmentAvailability(selectedDialog, currentUserId);
+
+  useEffect(() => {
+    if (assignState.success) {
+      assignFormRef.current?.reset();
+      startTransition(() => router.refresh());
+    }
+  }, [assignState.success, router, startTransition]);
 
   useEffect(() => {
     if (replyState.success) {
-      formRef.current?.reset();
+      replyFormRef.current?.reset();
       startTransition(() => router.refresh());
     }
   }, [replyState.success, router, startTransition]);
@@ -149,6 +259,34 @@ export function MessagesDashboard({ currentUserId, dialogs }: MessagesDashboardP
             >
               {isRefreshing ? "Обновление..." : "Обновить"}
             </button>
+          </div>
+        </div>
+
+        <div className="mt-5">
+          <div className="flex flex-wrap gap-2">
+            {dialogFilters.map((filter) => {
+              const isActive = filter.id === activeFilter;
+
+              return (
+                <button
+                  key={filter.id}
+                  type="button"
+                  onClick={() => {
+                    setActiveFilter(filter.id);
+                    setCurrentPage(1);
+                  }}
+                  aria-pressed={isActive}
+                  className={[
+                    "rounded-full border px-3 py-1.5 text-[11px] font-semibold transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/70 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950",
+                    isActive
+                      ? "border-sky-400/40 bg-sky-400/15 text-sky-100 shadow-[0_10px_24px_rgba(14,165,233,0.16)]"
+                      : "border-slate-800 bg-slate-950/70 text-slate-400 hover:border-slate-700 hover:text-slate-200",
+                  ].join(" ")}
+                >
+                  {filter.label}
+                </button>
+              );
+            })}
           </div>
         </div>
 
@@ -256,7 +394,39 @@ export function MessagesDashboard({ currentUserId, dialogs }: MessagesDashboardP
           </div>
 
           <form
-            ref={formRef}
+            ref={assignFormRef}
+            action={assignAction}
+            className="rounded-[1.5rem] border border-slate-800 bg-slate-950/55 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]"
+          >
+            <div className="flex flex-col gap-3">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-slate-100">Назначение клиента</p>
+                  <p className="mt-1 text-sm text-slate-400">{assignmentAvailability.hint}</p>
+                </div>
+                <span className="rounded-full border border-slate-800 bg-slate-900/80 px-3 py-1 text-[11px] font-semibold text-slate-300">
+                  {assignmentAvailability.statusLabel}
+                </span>
+              </div>
+
+              <ActionMessage state={assignState} />
+
+              <input type="hidden" name="clientId" value={selectedDialog?.client_id ?? ""} />
+
+              <div className="flex justify-end">
+                <button
+                  type="submit"
+                  disabled={!assignmentAvailability.canTake || isAssigning}
+                  className={`${secondaryButtonClassName} min-w-[160px]`}
+                >
+                  {isAssigning ? "Назначение..." : "Взять в работу"}
+                </button>
+              </div>
+            </div>
+          </form>
+
+          <form
+            ref={replyFormRef}
             action={replyAction}
             className="rounded-[1.5rem] border border-slate-800 bg-slate-950/55 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]"
           >
@@ -268,17 +438,7 @@ export function MessagesDashboard({ currentUserId, dialogs }: MessagesDashboardP
                 </div>
               </div>
 
-              {replyState.error ? (
-                <div className="rounded-2xl border border-red-500/25 bg-red-500/10 px-4 py-3 text-sm text-red-200">
-                  {replyState.error}
-                </div>
-              ) : null}
-
-              {replyState.success ? (
-                <div className="rounded-2xl border border-emerald-500/25 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-200">
-                  {replyState.success}
-                </div>
-              ) : null}
+              <ActionMessage state={replyState} />
 
               <input type="hidden" name="clientId" value={selectedDialog?.client_id ?? ""} />
               <textarea
