@@ -2,13 +2,18 @@
 
 import { useActionState, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { sendManagerMessageFormAction, takeClientInWorkFormAction } from "@/app/actions";
+import {
+  assignClientToManagerFormAction,
+  sendManagerMessageFormAction,
+  takeClientInWorkFormAction,
+} from "@/app/actions";
 import { DialogListItem } from "@/components/messages/DialogListItem";
-import type { ActionResult, DialogViewModel } from "@/types/message";
+import type { ActionResult, DialogViewModel, ManagerSummary } from "@/types/message";
 
 type MessagesDashboardProps = {
   currentUserId: string | null;
   dialogs: DialogViewModel[];
+  managers: ManagerSummary[];
 };
 
 type DialogFilterId = "all" | "mine" | "unassigned" | "assignedToOthers";
@@ -24,8 +29,10 @@ const initialActionState: ActionResult = {
 };
 
 const MESSAGES_PER_PAGE = 5;
+
 const secondaryButtonClassName =
   "rounded-xl border border-slate-700/90 bg-[linear-gradient(180deg,rgba(15,23,42,0.92),rgba(15,23,42,0.76))] px-3.5 py-2 text-[13px] font-semibold text-slate-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] transition-all duration-200 hover:-translate-y-0.5 hover:border-sky-500/40 hover:bg-[linear-gradient(180deg,rgba(30,41,59,0.96),rgba(15,23,42,0.88))] hover:text-white hover:shadow-[0_12px_24px_rgba(2,132,199,0.12)] active:translate-y-0 active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/70 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950 disabled:translate-y-0 disabled:scale-100 disabled:cursor-not-allowed disabled:border-slate-800 disabled:bg-slate-900/70 disabled:text-slate-500 disabled:shadow-none";
+
 const compactButtonClassName =
   "rounded-full border border-slate-700/90 bg-[linear-gradient(180deg,rgba(15,23,42,0.92),rgba(15,23,42,0.76))] px-3.5 py-1.5 text-[11px] font-semibold text-slate-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] transition-all duration-200 hover:-translate-y-0.5 hover:border-sky-500/40 hover:bg-[linear-gradient(180deg,rgba(30,41,59,0.96),rgba(15,23,42,0.88))] hover:text-white hover:shadow-[0_12px_24px_rgba(2,132,199,0.12)] active:translate-y-0 active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/70 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950 disabled:translate-y-0 disabled:scale-100 disabled:cursor-not-allowed disabled:border-slate-800 disabled:bg-slate-900/70 disabled:text-slate-500 disabled:shadow-none";
 
@@ -90,6 +97,24 @@ function getOutgoingMessageLabel(dialog: DialogViewModel | null): string {
   }
 
   return "Ответ менеджера";
+}
+
+function getManagerOptionLabel(manager: ManagerSummary): string {
+  const fullName = [manager.first_name?.trim(), manager.last_name?.trim()].filter(Boolean).join(" ");
+
+  if (fullName && manager.company_role) {
+    return `${fullName} (${manager.company_role})`;
+  }
+
+  if (fullName) {
+    return fullName;
+  }
+
+  if (manager.email && manager.company_role) {
+    return `${manager.email} (${manager.company_role})`;
+  }
+
+  return manager.email ?? `Менеджер #${manager.id}`;
 }
 
 function getClientStatus(
@@ -228,8 +253,9 @@ function ActionMessage({ state }: { state: ActionResult }) {
   );
 }
 
-export function MessagesDashboard({ currentUserId, dialogs }: MessagesDashboardProps) {
+export function MessagesDashboard({ currentUserId, dialogs, managers }: MessagesDashboardProps) {
   const assignFormRef = useRef<HTMLFormElement>(null);
+  const reassignFormRef = useRef<HTMLFormElement>(null);
   const replyFormRef = useRef<HTMLFormElement>(null);
   const router = useRouter();
   const [isRefreshing, startTransition] = useTransition();
@@ -237,11 +263,18 @@ export function MessagesDashboard({ currentUserId, dialogs }: MessagesDashboardP
     takeClientInWorkFormAction,
     initialActionState,
   );
+  const [reassignState, reassignAction, isReassigning] = useActionState(
+    assignClientToManagerFormAction,
+    initialActionState,
+  );
   const [replyState, replyAction, isSending] = useActionState(
     sendManagerMessageFormAction,
     initialActionState,
   );
   const [activeFilter, setActiveFilter] = useState<DialogFilterId>("all");
+  const [isActionsMenuOpen, setIsActionsMenuOpen] = useState(false);
+  const [isAssignSectionOpen, setIsAssignSectionOpen] = useState(false);
+  const [isReassignSectionOpen, setIsReassignSectionOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedChatId, setSelectedChatId] = useState<DialogViewModel["telegram_chat_id"] | null>(
     dialogs[0]?.telegram_chat_id ?? null,
@@ -273,10 +306,7 @@ export function MessagesDashboard({ currentUserId, dialogs }: MessagesDashboardP
     filteredDialogs.find((dialog) => dialog.telegram_chat_id === selectedChatId) ??
     filteredDialogs[0] ??
     null;
-  const totalPages = Math.max(
-    1,
-    Math.ceil((selectedDialog?.messages.length ?? 0) / MESSAGES_PER_PAGE),
-  );
+  const totalPages = Math.max(1, Math.ceil((selectedDialog?.messages.length ?? 0) / MESSAGES_PER_PAGE));
   const safeCurrentPage = Math.min(currentPage, totalPages);
   const pageStartIndex = (safeCurrentPage - 1) * MESSAGES_PER_PAGE;
   const selectedMessages =
@@ -285,6 +315,7 @@ export function MessagesDashboard({ currentUserId, dialogs }: MessagesDashboardP
   const assignmentAvailability = getAssignmentAvailability(selectedDialog, currentUserId);
   const clientStatus = getClientStatus(selectedDialog, currentUserId);
   const assignedManagerName = getManagerDisplayName(selectedDialog);
+  const reassignableManagers = managers.filter((manager) => manager.id !== selectedDialog?.current_manager_id);
 
   useEffect(() => {
     if (assignState.success) {
@@ -292,6 +323,13 @@ export function MessagesDashboard({ currentUserId, dialogs }: MessagesDashboardP
       startTransition(() => router.refresh());
     }
   }, [assignState.success, router, startTransition]);
+
+  useEffect(() => {
+    if (reassignState.success) {
+      reassignFormRef.current?.reset();
+      startTransition(() => router.refresh());
+    }
+  }, [reassignState.success, router, startTransition]);
 
   useEffect(() => {
     if (replyState.success) {
@@ -387,6 +425,9 @@ export function MessagesDashboard({ currentUserId, dialogs }: MessagesDashboardP
                   onSelect={() => {
                     setSelectedChatId(dialog.telegram_chat_id);
                     setCurrentPage(1);
+                    setIsActionsMenuOpen(false);
+                    setIsAssignSectionOpen(false);
+                    setIsReassignSectionOpen(false);
                   }}
                   preview={formatMessagePreview(dialog.lastMessageText)}
                   username={dialog.displayName}
@@ -436,9 +477,7 @@ export function MessagesDashboard({ currentUserId, dialogs }: MessagesDashboardP
                 Последняя активность
               </p>
               <p className="mt-1.5 text-[12px] text-slate-300">
-                {selectedDialog
-                  ? dateFormatter.format(new Date(selectedDialog.lastMessageAt))
-                  : "—"}
+                {selectedDialog ? dateFormatter.format(new Date(selectedDialog.lastMessageAt)) : "—"}
               </p>
             </div>
           </div>
@@ -456,80 +495,197 @@ export function MessagesDashboard({ currentUserId, dialogs }: MessagesDashboardP
                   : "Нет выбранного диалога"}
               </p>
             </div>
+            <button
+              type="button"
+              onClick={() =>
+                setIsActionsMenuOpen((open) => {
+                  const nextOpen = !open;
+
+                  if (!nextOpen) {
+                    setIsAssignSectionOpen(false);
+                    setIsReassignSectionOpen(false);
+                  }
+
+                  return nextOpen;
+                })
+              }
+              className={`${secondaryButtonClassName} inline-flex min-w-[168px] items-center justify-center gap-2`}
+            >
+              <span aria-hidden="true" className="text-sm leading-none">
+                {isActionsMenuOpen ? "x" : "|||"}
+              </span>
+              {isActionsMenuOpen ? "Скрыть меню" : "Меню диалога"}
+            </button>
           </div>
 
-          <section className="rounded-[1.5rem] border border-slate-800 bg-slate-950/55 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-              <div>
-                <p className="text-sm font-semibold text-slate-100">Ответственный менеджер</p>
-                <p className="mt-1 text-sm text-slate-400">{clientStatus.hint}</p>
-              </div>
-              <span
-                className={`rounded-full border px-3 py-1 text-[11px] font-semibold ${clientStatus.toneClassName}`}
-              >
-                {clientStatus.label}
-              </span>
-            </div>
-
-            <div className="mt-4 grid gap-3 md:grid-cols-3">
-              <div className="rounded-[1rem] border border-slate-800/90 bg-slate-950/70 px-4 py-3">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-slate-500">
-                  Менеджер
-                </p>
-                <p className="mt-2 text-sm font-semibold text-slate-100">{assignedManagerName}</p>
-              </div>
-
-              <div className="rounded-[1rem] border border-slate-800/90 bg-slate-950/70 px-4 py-3">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-slate-500">
-                  Роль
-                </p>
-                <p className="mt-2 text-sm text-slate-300">
-                  {selectedDialog?.manager_company_role || "Не указана"}
-                </p>
-              </div>
-
-              <div className="rounded-[1rem] border border-slate-800/90 bg-slate-950/70 px-4 py-3">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-slate-500">
-                  Auth User ID
-                </p>
-                <p className="mt-2 break-all font-mono text-[12px] text-slate-300">
-                  {selectedDialog?.manager_auth_user_id || "—"}
-                </p>
-              </div>
-            </div>
-          </section>
-
-          <form
-            ref={assignFormRef}
-            action={assignAction}
-            className="rounded-[1.5rem] border border-slate-800 bg-slate-950/55 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]"
-          >
-            <div className="flex flex-col gap-3">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <p className="text-sm font-semibold text-slate-100">Назначение клиента</p>
-                  <p className="mt-1 text-sm text-slate-400">{assignmentAvailability.hint}</p>
+          {isActionsMenuOpen ? (
+            <div className="space-y-4 rounded-[1.5rem] border border-slate-800/90 bg-[linear-gradient(180deg,rgba(2,6,23,0.72),rgba(15,23,42,0.6))] p-3 sm:p-4">
+              <section className="rounded-[1.5rem] border border-slate-800 bg-slate-950/55 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-slate-100">Ответственный менеджер</p>
+                    <p className="mt-1 text-sm text-slate-400">{clientStatus.hint}</p>
+                  </div>
+                  <span
+                    className={`rounded-full border px-3 py-1 text-[11px] font-semibold ${clientStatus.toneClassName}`}
+                  >
+                    {clientStatus.label}
+                  </span>
                 </div>
-                <span className="rounded-full border border-slate-800 bg-slate-900/80 px-3 py-1 text-[11px] font-semibold text-slate-300">
-                  {assignmentAvailability.statusLabel}
-                </span>
-              </div>
 
-              <ActionMessage state={assignState} />
+                <div className="mt-4 grid gap-3 sm:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
+                  <div className="rounded-[1rem] border border-slate-800/90 bg-slate-950/70 px-4 py-3">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-slate-500">
+                      Менеджер
+                    </p>
+                    <p className="mt-2 truncate text-sm font-semibold text-slate-100">
+                      {assignedManagerName}
+                    </p>
+                  </div>
 
-              <input type="hidden" name="clientId" value={selectedDialog?.client_id ?? ""} />
+                  <div className="rounded-[1rem] border border-slate-800/90 bg-slate-950/70 px-4 py-3">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-slate-500">
+                      Роль
+                    </p>
+                    <p className="mt-2 text-sm text-slate-300">
+                      {selectedDialog?.manager_company_role || "Не указана"}
+                    </p>
+                  </div>
+                </div>
+              </section>
 
-              <div className="flex justify-end">
+              <section className="rounded-[1.2rem] border border-slate-800 bg-slate-950/55 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
                 <button
-                  type="submit"
-                  disabled={!assignmentAvailability.canTake || isAssigning}
-                  className={`${secondaryButtonClassName} min-w-[160px]`}
+                  type="button"
+                  onClick={() => setIsAssignSectionOpen((open) => !open)}
+                  className="flex w-full items-center justify-between gap-3 rounded-[0.9rem] px-1 py-1 text-left"
                 >
-                  {isAssigning ? "Назначение..." : "Взять в работу"}
+                  <div>
+                    <p className="text-sm font-semibold text-slate-100">Назначение клиента</p>
+                    <p className="mt-1 text-sm text-slate-400">{assignmentAvailability.statusLabel}</p>
+                  </div>
+                  <span className="text-slate-400">{isAssignSectionOpen ? "-" : "+"}</span>
                 </button>
-              </div>
+
+                {isAssignSectionOpen ? (
+                  <form
+                    ref={assignFormRef}
+                    action={assignAction}
+                    className="mt-3 rounded-[1.2rem] border border-slate-800 bg-slate-950/55 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]"
+                  >
+                    <div className="flex flex-col gap-3">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                          <p className="text-sm font-semibold text-slate-100">Назначение клиента</p>
+                          <p className="mt-1 text-sm text-slate-400">{assignmentAvailability.hint}</p>
+                        </div>
+                        <span className="rounded-full border border-slate-800 bg-slate-900/80 px-3 py-1 text-[11px] font-semibold text-slate-300">
+                          {assignmentAvailability.statusLabel}
+                        </span>
+                      </div>
+
+                      <ActionMessage state={assignState} />
+
+                      <input type="hidden" name="clientId" value={selectedDialog?.client_id ?? ""} />
+
+                      <div className="flex justify-end">
+                        <button
+                          type="submit"
+                          disabled={!assignmentAvailability.canTake || isAssigning}
+                          className={`${secondaryButtonClassName} min-w-[160px]`}
+                        >
+                          {isAssigning ? "Назначение..." : "Взять в работу"}
+                        </button>
+                      </div>
+                    </div>
+                  </form>
+                ) : null}
+              </section>
+
+              <section className="rounded-[1.2rem] border border-slate-800 bg-slate-950/55 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
+                <button
+                  type="button"
+                  onClick={() => setIsReassignSectionOpen((open) => !open)}
+                  className="flex w-full items-center justify-between gap-3 rounded-[0.9rem] px-1 py-1 text-left"
+                >
+                  <div>
+                    <p className="text-sm font-semibold text-slate-100">Переназначение клиента</p>
+                    <p className="mt-1 text-sm text-slate-400">
+                      {reassignableManagers.length > 0
+                        ? `Доступно менеджеров: ${reassignableManagers.length}`
+                        : "Нет доступных менеджеров"}
+                    </p>
+                  </div>
+                  <span className="text-slate-400">{isReassignSectionOpen ? "-" : "+"}</span>
+                </button>
+
+                {isReassignSectionOpen ? (
+                  <form
+                    ref={reassignFormRef}
+                    action={reassignAction}
+                    className="mt-3 rounded-[1.2rem] border border-slate-800 bg-slate-950/55 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]"
+                  >
+                    <div className="flex flex-col gap-3">
+                      <div>
+                        <p className="text-sm font-semibold text-slate-100">Переназначение клиента</p>
+                        <p className="mt-1 text-sm text-slate-400">
+                          Выберите менеджера и, при необходимости, укажите причину переназначения.
+                        </p>
+                      </div>
+
+                      <ActionMessage state={reassignState} />
+
+                      <input type="hidden" name="clientId" value={selectedDialog?.client_id ?? ""} />
+
+                      <label className="flex flex-col gap-2">
+                        <span className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">
+                          Новый менеджер
+                        </span>
+                        <select
+                          name="newManagerId"
+                          defaultValue=""
+                          disabled={!selectedDialog || reassignableManagers.length === 0 || isReassigning}
+                          className="rounded-[1rem] border border-slate-800 bg-slate-950/80 px-4 py-3 text-sm text-slate-100 outline-none transition focus:border-sky-400/60 disabled:cursor-not-allowed disabled:text-slate-500"
+                        >
+                          <option value="" disabled>
+                            Выберите менеджера
+                          </option>
+                          {reassignableManagers.map((manager) => (
+                            <option key={manager.id} value={manager.id}>
+                              {getManagerOptionLabel(manager)}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+
+                      <label className="flex flex-col gap-2">
+                        <span className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">
+                          Причина
+                        </span>
+                        <textarea
+                          name="reassignmentReason"
+                          rows={3}
+                          disabled={!selectedDialog || isReassigning}
+                          placeholder="Например: смена ответственного, перераспределение нагрузки, отпуск"
+                          className="w-full resize-y rounded-[1.2rem] border border-slate-800 bg-slate-950/80 px-4 py-3 text-sm text-slate-100 outline-none transition placeholder:text-slate-500 focus:border-sky-400/60 disabled:cursor-not-allowed disabled:text-slate-500"
+                        />
+                      </label>
+
+                      <div className="flex justify-end">
+                        <button
+                          type="submit"
+                          disabled={!selectedDialog || reassignableManagers.length === 0 || isReassigning}
+                          className={`${secondaryButtonClassName} min-w-[180px]`}
+                        >
+                          {isReassigning ? "Переназначение..." : "Переназначить"}
+                        </button>
+                      </div>
+                    </div>
+                  </form>
+                ) : null}
+              </section>
             </div>
-          </form>
+          ) : null}
 
           <form
             ref={replyFormRef}

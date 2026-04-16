@@ -131,7 +131,6 @@ export async function assignClientToManagerAction({
     };
   }
 
-  const supabase = await createServerSupabaseClient();
   const currentManager = await getCurrentManager();
 
   if (!currentManager) {
@@ -219,6 +218,21 @@ export async function sendManagerMessageFormAction(
   return sendManagerMessageAction({
     clientId,
     text,
+  });
+}
+
+export async function assignClientToManagerFormAction(
+  _previousState: ActionResult,
+  formData: FormData,
+): Promise<ActionResult> {
+  const clientId = String(formData.get("clientId") ?? "").trim();
+  const newManagerId = String(formData.get("newManagerId") ?? "").trim();
+  const reassignmentReason = String(formData.get("reassignmentReason") ?? "").trim();
+
+  return assignClientToManagerAction({
+    clientId,
+    newManagerId,
+    reassignmentReason,
   });
 }
 

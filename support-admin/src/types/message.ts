@@ -74,6 +74,7 @@ export type DashboardDataResult = {
   currentUserId: string | null;
   dialogs: DialogViewModel[];
   errorMessage: string | null;
+  managers: ManagerSummary[];
   stats: DashboardStats;
 };
 

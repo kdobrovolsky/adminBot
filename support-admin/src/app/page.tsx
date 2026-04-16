@@ -7,6 +7,7 @@ import type {
   ActiveChatRow,
   DashboardDataResult,
   DashboardStats,
+  ManagerSummary,
   MessageRow,
   MessageStatsRow,
 } from "@/types/message";
@@ -51,7 +52,7 @@ async function getDashboardData(): Promise<DashboardDataResult> {
       redirect("/login");
     }
 
-    const [activeChatsResult, messagesResult, statsResult] = await Promise.all([
+    const [activeChatsResult, messagesResult, statsResult, managersResult] = await Promise.all([
       supabase
         .from("active_chats")
         .select(
@@ -81,6 +82,10 @@ async function getDashboardData(): Promise<DashboardDataResult> {
         .select("client_id, created_at, direction, manager_id, message_text, sent_at")
         .order("sent_at", { ascending: false }),
       supabase.from("message_stats").select("*").maybeSingle(),
+      supabase
+        .from("manager_details")
+        .select("id, auth_user_id, email, first_name, last_name, company_role")
+        .order("first_name", { ascending: true }),
     ]);
 
     if (activeChatsResult.error) {
@@ -88,6 +93,7 @@ async function getDashboardData(): Promise<DashboardDataResult> {
         currentUserId: user.id,
         dialogs: [],
         errorMessage: `Failed to load active chats: ${activeChatsResult.error.message}`,
+        managers: [],
         stats: mapStats(statsResult.data),
       };
     }
@@ -97,17 +103,30 @@ async function getDashboardData(): Promise<DashboardDataResult> {
         currentUserId: user.id,
         dialogs: [],
         errorMessage: `Failed to load messages: ${messagesResult.error.message}`,
+        managers: [],
+        stats: mapStats(statsResult.data),
+      };
+    }
+
+    if (managersResult.error) {
+      return {
+        currentUserId: user.id,
+        dialogs: [],
+        errorMessage: `Failed to load managers: ${managersResult.error.message}`,
+        managers: [],
         stats: mapStats(statsResult.data),
       };
     }
 
     const activeChats = (activeChatsResult.data ?? []) as unknown as ActiveChatRow[];
     const messages = (messagesResult.data ?? []) as unknown as MessageRow[];
+    const managers = (managersResult.data ?? []) as unknown as ManagerSummary[];
 
     return {
       dialogs: buildDialogs(activeChats, messages),
       errorMessage: null,
       currentUserId: user.id,
+      managers,
       stats: mapStats(statsResult.data),
     };
   } catch {
@@ -115,13 +134,14 @@ async function getDashboardData(): Promise<DashboardDataResult> {
       currentUserId: null,
       dialogs: [],
       errorMessage: "Check Supabase environment variables for the admin app.",
+      managers: [],
       stats: emptyStats,
     };
   }
 }
 
 export default async function Home() {
-  const { currentUserId, dialogs, errorMessage, stats } = await getDashboardData();
+  const { currentUserId, dialogs, errorMessage, managers, stats } = await getDashboardData();
   const latestMessageAt = dialogs[0]?.lastMessageAt ?? null;
   const latestMessageLabel = latestMessageAt
     ? dateFormatter.format(new Date(latestMessageAt))
@@ -145,7 +165,7 @@ export default async function Home() {
           </section>
         ) : null}
 
-        <MessagesDashboard currentUserId={currentUserId} dialogs={dialogs} />
+        <MessagesDashboard currentUserId={currentUserId} dialogs={dialogs} managers={managers} />
       </div>
     </main>
   );
