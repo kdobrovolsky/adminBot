@@ -3,6 +3,8 @@
 import { useActionState, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
+  closeDialogFormAction,
+  releaseClientFromWorkFormAction,
   sendManagerMessageFormAction,
   takeClientInWorkFormAction,
 } from "@/app/actions";
@@ -243,6 +245,14 @@ export function MessagesDashboard({ currentUserId, dialogs }: MessagesDashboardP
     takeClientInWorkFormAction,
     initialActionState,
   );
+  const [releaseState, releaseAction, isReleasing] = useActionState(
+    releaseClientFromWorkFormAction,
+    initialActionState,
+  );
+  const [closeState, closeAction, isClosing] = useActionState(
+    closeDialogFormAction,
+    initialActionState,
+  );
   const [replyState, replyAction, isSending] = useActionState(
     sendManagerMessageFormAction,
     initialActionState,
@@ -287,9 +297,11 @@ export function MessagesDashboard({ currentUserId, dialogs }: MessagesDashboardP
   const pageStartIndex = (safeCurrentPage - 1) * MESSAGES_PER_PAGE;
   const selectedMessages =
     selectedDialog?.messages.slice(pageStartIndex, pageStartIndex + MESSAGES_PER_PAGE) ?? [];
+  const displayedMessages = [...selectedMessages].reverse();
   const replyAvailability = getReplyAvailability(selectedDialog, currentUserId);
   const assignmentAvailability = getAssignmentAvailability(selectedDialog, currentUserId);
   const clientStatus = getClientStatus(selectedDialog, currentUserId);
+  const isDialogAssigned = Boolean(selectedDialog?.manager_auth_user_id);
   const filterCounts: Record<DialogFilterId, number> = {
     all: dialogs.length,
     mine: dialogs.filter((dialog) => Boolean(currentUserId) && dialog.manager_auth_user_id === currentUserId).length,
@@ -306,6 +318,18 @@ export function MessagesDashboard({ currentUserId, dialogs }: MessagesDashboardP
       startTransition(() => router.refresh());
     }
   }, [assignState.success, router, startTransition]);
+
+  useEffect(() => {
+    if (releaseState.success) {
+      startTransition(() => router.refresh());
+    }
+  }, [releaseState.success, router, startTransition]);
+
+  useEffect(() => {
+    if (closeState.success) {
+      startTransition(() => router.refresh());
+    }
+  }, [closeState.success, router, startTransition]);
 
   useEffect(() => {
     if (replyState.success) {
@@ -514,10 +538,22 @@ export function MessagesDashboard({ currentUserId, dialogs }: MessagesDashboardP
                     <input type="hidden" name="clientId" value={selectedDialog?.client_id ?? ""} />
                     <button
                       type="submit"
+                      onClick={closeActionsDropdown}
                       disabled={!assignmentAvailability.canTake || isAssigning}
                       className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-[13px] font-medium text-slate-200 transition hover:bg-slate-900 disabled:cursor-not-allowed disabled:text-slate-600"
                     >
                       Взять в работу
+                    </button>
+                  </form>
+                  <form action={releaseAction}>
+                    <input type="hidden" name="clientId" value={selectedDialog?.client_id ?? ""} />
+                    <button
+                      type="submit"
+                      onClick={closeActionsDropdown}
+                      disabled={!isDialogAssigned || isReleasing}
+                      className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-[13px] font-medium text-slate-200 transition hover:bg-slate-900 disabled:cursor-not-allowed disabled:text-slate-600"
+                    >
+                      {isReleasing ? "Снятие..." : "Снять с работы"}
                     </button>
                   </form>
                   <button
@@ -525,22 +561,19 @@ export function MessagesDashboard({ currentUserId, dialogs }: MessagesDashboardP
                     disabled
                     className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-[13px] font-medium text-slate-600"
                   >
-                    Снять с работы
-                  </button>
-                  <button
-                    type="button"
-                    disabled
-                    className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-[13px] font-medium text-slate-600"
-                  >
                     Назначить менеджера
                   </button>
-                  <button
-                    type="button"
-                    disabled
-                    className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-[13px] font-medium text-slate-600"
-                  >
-                    Закрыть диалог
-                  </button>
+                  <form action={closeAction}>
+                    <input type="hidden" name="clientId" value={selectedDialog?.client_id ?? ""} />
+                    <button
+                      type="submit"
+                      onClick={closeActionsDropdown}
+                      disabled={!selectedDialog || isClosing}
+                      className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-[13px] font-medium text-red-200 transition hover:bg-red-500/10 disabled:cursor-not-allowed disabled:text-slate-600"
+                    >
+                      {isClosing ? "Закрытие..." : "Закрыть диалог"}
+                    </button>
+                  </form>
                 </div>
               ) : null}
             </div>
@@ -548,6 +581,10 @@ export function MessagesDashboard({ currentUserId, dialogs }: MessagesDashboardP
         </div>
 
         <div className="mt-3 space-y-3">
+          <ActionMessage state={assignState} />
+          <ActionMessage state={releaseState} />
+          <ActionMessage state={closeState} />
+
           {selectedMessages.length > 0 ? (
             <div className="space-y-2.5">
               <div className="flex flex-wrap items-center justify-between gap-2 rounded-[0.85rem] border border-slate-800 bg-slate-950/65 px-2.5 py-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] sm:gap-2.5">
@@ -574,7 +611,7 @@ export function MessagesDashboard({ currentUserId, dialogs }: MessagesDashboardP
                 </button>
               </div>
 
-              {selectedMessages.map((message) => {
+              {displayedMessages.map((message) => {
                 const isManagerMessage = message.direction === "outgoing";
 
                 return (

@@ -264,3 +264,104 @@ export async function takeClientInWorkFormAction(
     newManagerId: currentManager.id,
   });
 }
+
+export async function releaseClientFromWorkFormAction(
+  _previousState: ActionResult,
+  formData: FormData,
+): Promise<ActionResult> {
+  const clientId = Number(String(formData.get("clientId") ?? "").trim());
+
+  if (!Number.isInteger(clientId)) {
+    return {
+      error: "Client is required.",
+      success: null,
+    };
+  }
+
+  const currentManager = await getCurrentManager();
+
+  if (!currentManager) {
+    return {
+      error: "Current user is not linked to public.manager_details.",
+      success: null,
+    };
+  }
+
+  const supabase = await createServerSupabaseClient();
+  const { data, error } = await supabase
+    .from("client_assignments")
+    .update({
+      current_manager_id: null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("client_id", clientId)
+    .select("id")
+    .maybeSingle();
+
+  if (error) {
+    return {
+      error: `Failed to release client: ${error.message}`,
+      success: null,
+    };
+  }
+
+  if (!data) {
+    return {
+      error: "Failed to release client: assignment row was not updated.",
+      success: null,
+    };
+  }
+
+  revalidatePath("/");
+
+  return {
+    error: null,
+    success: "Client released from work.",
+  };
+}
+
+export async function closeDialogFormAction(
+  _previousState: ActionResult,
+  formData: FormData,
+): Promise<ActionResult> {
+  const clientId = Number(String(formData.get("clientId") ?? "").trim());
+
+  if (!Number.isInteger(clientId)) {
+    return {
+      error: "Client is required.",
+      success: null,
+    };
+  }
+
+  const currentManager = await getCurrentManager();
+
+  if (!currentManager) {
+    return {
+      error: "Current user is not linked to public.manager_details.",
+      success: null,
+    };
+  }
+
+  const supabase = await createServerSupabaseClient();
+  const { error } = await supabase
+    .from("clients")
+    .update({
+      closed_at: new Date().toISOString(),
+      status: "closed",
+    })
+    .eq("id", clientId);
+
+  if (error) {
+    return {
+      error: `Failed to close dialog: ${error.message}`,
+      success: null,
+    };
+  }
+
+  revalidatePath("/");
+
+  return {
+    error: null,
+    success: "Dialog closed.",
+  };
+}
