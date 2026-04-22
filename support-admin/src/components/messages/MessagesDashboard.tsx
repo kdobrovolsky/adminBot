@@ -8,6 +8,7 @@ import {
   takeClientInWorkFormAction,
 } from "@/app/actions";
 import { DialogListItem } from "@/components/messages/DialogListItem";
+import { MessagesListener } from "@/features/messages/realtime/MessagesListener";
 import type { ActionResult, DialogViewModel, ManagerSummary } from "@/types/message";
 
 type MessagesDashboardProps = {
@@ -339,7 +340,9 @@ export function MessagesDashboard({ currentUserId, dialogs, managers }: Messages
   }, [replyState.success, router, startTransition]);
 
   return (
-    <section className="grid gap-6 xl:grid-cols-[360px_minmax(0,1fr)] 2xl:grid-cols-[380px_minmax(0,1fr)]">
+    <>
+      <MessagesListener />
+      <section className="grid gap-6 xl:grid-cols-[360px_minmax(0,1fr)] 2xl:grid-cols-[380px_minmax(0,1fr)]">
       <aside className="rounded-[1.75rem] border border-slate-800/80 bg-[linear-gradient(180deg,rgba(2,6,23,0.9),rgba(15,23,42,0.8))] p-4 shadow-[0_24px_80px_rgba(2,6,23,0.44)] backdrop-blur sm:rounded-[2rem] sm:p-5 xl:p-6">
         <div className="flex items-start justify-between gap-4 border-b border-slate-800/90 pb-5">
           <div>
@@ -785,6 +788,7 @@ export function MessagesDashboard({ currentUserId, dialogs, managers }: Messages
           )}
         </div>
       </section>
-    </section>
+      </section>
+    </>
   );
 }
