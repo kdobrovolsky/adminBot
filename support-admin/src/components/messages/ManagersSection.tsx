@@ -78,24 +78,24 @@ export function ManagersSection({ currentUserId, dialogs, managers }: ManagersSe
     });
 
   return (
-    <section className="rounded-[1.5rem] border border-slate-800/80 bg-[linear-gradient(180deg,rgba(2,6,23,0.88),rgba(15,23,42,0.74))] p-4 shadow-[0_18px_48px_rgba(2,6,23,0.28)] backdrop-blur sm:rounded-[1.75rem] sm:p-5">
-      <div className="flex flex-col gap-2 border-b border-slate-800/90 pb-4 sm:flex-row sm:items-end sm:justify-between">
+    <section className="rounded-[1.1rem] border border-slate-800/80 bg-[linear-gradient(180deg,rgba(2,6,23,0.88),rgba(15,23,42,0.74))] p-3.5 shadow-[0_14px_36px_rgba(2,6,23,0.24)] backdrop-blur sm:p-4">
+      <div className="flex flex-col gap-1.5 border-b border-slate-800/90 pb-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-slate-500">
             Team
           </p>
-          <h2 className="mt-1 text-[1.15rem] font-semibold tracking-[-0.03em] text-slate-50">
+          <h2 className="mt-0.5 text-base font-semibold tracking-[-0.03em] text-slate-50">
             Менеджеры
           </h2>
         </div>
 
-        <p className="text-sm text-slate-400">Всего: {managers.length}</p>
+        <p className="text-[13px] text-slate-400">Всего: {managers.length}</p>
       </div>
 
       {managersWithMetrics.length > 0 ? (
-        <div className="mt-4 overflow-x-auto">
+        <div className="mt-3 overflow-x-auto">
           <div className="min-w-[720px]">
-            <div className="grid grid-cols-[minmax(0,2fr)_minmax(0,1.1fr)_88px_96px_160px] gap-3 px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.22em] text-slate-500">
+            <div className="grid grid-cols-[minmax(0,2fr)_minmax(0,1.1fr)_76px_88px_150px] gap-2.5 px-2.5 py-1.5 text-[9px] font-semibold uppercase tracking-[0.2em] text-slate-500">
               <span>Менеджер</span>
               <span>Роль</span>
               <span>Клиенты</span>
@@ -103,18 +103,18 @@ export function ManagersSection({ currentUserId, dialogs, managers }: ManagersSe
               <span>Активность</span>
             </div>
 
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               {managersWithMetrics.map(({ manager, metrics }) => {
                 const isCurrentUser = currentUserId && manager.auth_user_id === currentUserId;
 
                 return (
                   <article
                     key={manager.id}
-                    className="grid grid-cols-[minmax(0,2fr)_minmax(0,1.1fr)_88px_96px_160px] items-center gap-3 rounded-[1rem] border border-slate-800/90 bg-slate-950/55 px-3 py-3"
+                    className="grid grid-cols-[minmax(0,2fr)_minmax(0,1.1fr)_76px_88px_150px] items-center gap-2.5 rounded-[0.75rem] border border-slate-800/90 bg-slate-950/55 px-2.5 py-2"
                   >
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
-                        <p className="truncate text-sm font-semibold text-slate-100">
+                        <p className="truncate text-[13px] font-semibold text-slate-100">
                           {getManagerDisplayName(manager)}
                         </p>
                         {isCurrentUser ? (
@@ -123,13 +123,13 @@ export function ManagersSection({ currentUserId, dialogs, managers }: ManagersSe
                           </span>
                         ) : null}
                       </div>
-                      <p className="mt-1 truncate text-xs text-slate-500">{manager.email || "Email не указан"}</p>
+                      <p className="mt-0.5 truncate text-[11px] text-slate-500">{manager.email || "Email не указан"}</p>
                     </div>
 
-                    <p className="truncate text-sm text-slate-300">{manager.company_role || "Не указана"}</p>
-                    <p className="text-sm font-semibold text-slate-100">{metrics.assignedClients}</p>
-                    <p className="text-sm font-semibold text-slate-100">{metrics.totalMessages}</p>
-                    <p className="text-xs text-slate-400">
+                    <p className="truncate text-[13px] text-slate-300">{manager.company_role || "Не указана"}</p>
+                    <p className="text-[13px] font-semibold text-slate-100">{metrics.assignedClients}</p>
+                    <p className="text-[13px] font-semibold text-slate-100">{metrics.totalMessages}</p>
+                    <p className="text-[11px] text-slate-400">
                       {metrics.latestActivityAt
                         ? dateFormatter.format(new Date(metrics.latestActivityAt))
                         : "Нет активности"}
@@ -141,7 +141,7 @@ export function ManagersSection({ currentUserId, dialogs, managers }: ManagersSe
           </div>
         </div>
       ) : (
-        <div className="mt-4 rounded-[1.2rem] border border-dashed border-slate-700 bg-slate-950/55 px-4 py-8 text-center">
+        <div className="mt-3 rounded-[0.9rem] border border-dashed border-slate-700 bg-slate-950/55 px-4 py-6 text-center">
           <p className="text-sm font-medium text-slate-300">Менеджеры не найдены</p>
           <p className="mt-2 text-sm text-slate-400">
             Раздел заполнится после появления записей в `manager_details`.

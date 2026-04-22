@@ -1,6 +1,5 @@
 import { redirect } from "next/navigation";
 import { DashboardHeader } from "@/components/messages/DashboardHeader";
-import { ManagersSection } from "@/components/messages/ManagersSection";
 import { MessagesDashboard } from "@/components/messages/MessagesDashboard";
 import { buildDialogs } from "@/lib/dialogs";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
@@ -14,11 +13,6 @@ import type {
 } from "@/types/message";
 
 export const dynamic = "force-dynamic";
-
-const dateFormatter = new Intl.DateTimeFormat("ru-RU", {
-  dateStyle: "medium",
-  timeStyle: "short",
-});
 
 const emptyStats: DashboardStats = {
   activeChatsCount: 0,
@@ -142,23 +136,15 @@ async function getDashboardData(): Promise<DashboardDataResult> {
 }
 
 export default async function Home() {
-  const { currentUserId, dialogs, errorMessage, managers, stats } = await getDashboardData();
-  const latestMessageAt = dialogs[0]?.lastMessageAt ?? null;
-  const latestMessageLabel = latestMessageAt
-    ? dateFormatter.format(new Date(latestMessageAt))
-    : "No data yet";
+  const { currentUserId, dialogs, errorMessage } = await getDashboardData();
 
   return (
-    <main className="min-h-screen px-3 py-6 text-slate-100 sm:px-5 sm:py-8 lg:px-8 lg:py-10">
-      <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 sm:gap-7 lg:gap-8">
-        <DashboardHeader
-          dialogsCount={stats.activeChatsCount || dialogs.length}
-          latestMessageLabel={latestMessageLabel}
-          messagesCount={stats.totalMessages}
-        />
+    <main className="min-h-screen px-3 py-4 text-slate-100 sm:px-4 sm:py-5 lg:px-6 lg:py-6">
+      <div className="mx-auto flex w-full max-w-[92rem] flex-col gap-4 sm:gap-5">
+        <DashboardHeader />
 
         {errorMessage ? (
-          <section className="rounded-[1.5rem] border border-red-500/20 bg-[linear-gradient(180deg,rgba(69,10,10,0.48),rgba(127,29,29,0.18))] px-4 py-4 shadow-[0_18px_50px_rgba(69,10,10,0.18)] sm:rounded-[1.75rem] sm:px-5">
+          <section className="rounded-[1rem] border border-red-500/20 bg-[linear-gradient(180deg,rgba(69,10,10,0.48),rgba(127,29,29,0.18))] px-4 py-3 shadow-[0_12px_34px_rgba(69,10,10,0.14)] sm:px-5">
             <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-red-300">
               Data Error
             </p>
@@ -166,8 +152,7 @@ export default async function Home() {
           </section>
         ) : null}
 
-        <ManagersSection currentUserId={currentUserId} dialogs={dialogs} managers={managers} />
-        <MessagesDashboard currentUserId={currentUserId} dialogs={dialogs} managers={managers} />
+        <MessagesDashboard currentUserId={currentUserId} dialogs={dialogs} />
       </div>
     </main>
   );
