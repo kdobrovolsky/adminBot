@@ -9,10 +9,12 @@ import {
   takeClientInWorkFormAction,
 } from "@/app/actions";
 import { DialogListItem } from "@/components/messages/DialogListItem";
+import { useToast } from "@/components/ui/ToastProvider";
 import { MessagesListener } from "@/features/messages/realtime/MessagesListener";
 import type { ActionResult, DialogViewModel } from "@/types/message";
 
 type MessagesDashboardProps = {
+  currentManagerId: number | null;
   currentUserId: string | null;
   dialogs: DialogViewModel[];
 };
@@ -210,36 +212,78 @@ function getAssignmentAvailability(
   }
 
   return {
-    canTake: false,
+    canTake: true,
     hint: "Клиент уже назначен другому менеджеру.",
     statusLabel: "Назначен другому менеджеру",
   };
 }
 
-function ActionMessage({ state }: { state: ActionResult }) {
-  if (!state.error && !state.success) {
-    return null;
+function getReleaseAvailability(
+  dialog: DialogViewModel | null,
+  currentUserId: string | null,
+): { canRelease: boolean; hint: string } {
+  if (!dialog) {
+    return {
+      canRelease: false,
+      hint: "РЎРЅР°С‡Р°Р»Р° РІС‹Р±РµСЂРёС‚Рµ РґРёР°Р»РѕРі.",
+    };
   }
 
-  const isSuccess = Boolean(state.success);
+  if (!currentUserId) {
+    return {
+      canRelease: false,
+      hint: "РќРµ СѓРґР°Р»РѕСЃСЊ РѕРїСЂРµРґРµР»РёС‚СЊ С‚РµРєСѓС‰РµРіРѕ РјРµРЅРµРґР¶РµСЂР°.",
+    };
+  }
 
-  return (
-    <div
-      className={`rounded-xl px-3 py-2 text-[13px] ${
-        isSuccess
-          ? "border border-emerald-500/25 bg-emerald-500/10 text-emerald-200"
-          : "border border-red-500/25 bg-red-500/10 text-red-200"
-      }`}
-    >
-      {state.success ?? state.error}
-    </div>
-  );
+  if (!dialog.manager_auth_user_id) {
+    return {
+      canRelease: false,
+      hint: "Р”РёР°Р»РѕРі СѓР¶Рµ РЅРµ РЅР°С…РѕРґРёС‚СЃСЏ РІ СЂР°Р±РѕС‚Рµ.",
+    };
+  }
+
+  if (dialog.manager_auth_user_id !== currentUserId) {
+    return {
+      canRelease: false,
+      hint: "РЎРЅСЏС‚СЊ СЃ СЂР°Р±РѕС‚С‹ РјРѕР¶РЅРѕ С‚РѕР»СЊРєРѕ СЃРІРѕР№ РґРёР°Р»РѕРі.",
+    };
+  }
+
+  return {
+    canRelease: true,
+    hint: "Р”РёР°Р»РѕРі Р±СѓРґРµС‚ СЃРЅСЏС‚ СЃ РІР°С€РµР№ СЂР°Р±РѕС‚С‹.",
+  };
 }
 
-export function MessagesDashboard({ currentUserId, dialogs }: MessagesDashboardProps) {
+function getCloseAvailability(
+  dialog: DialogViewModel | null,
+  currentUserId: string | null,
+): { canClose: boolean; hint: string } {
+  if (!dialog) {
+    return {
+      canClose: false,
+      hint: "РЎРЅР°С‡Р°Р»Р° РІС‹Р±РµСЂРёС‚Рµ РґРёР°Р»РѕРі.",
+    };
+  }
+
+  if (!currentUserId) {
+    return {
+      canClose: false,
+      hint: "РќРµ СѓРґР°Р»РѕСЃСЊ РѕРїСЂРµРґРµР»РёС‚СЊ С‚РµРєСѓС‰РµРіРѕ РјРµРЅРµРґР¶РµСЂР°.",
+    };
+  }
+  return {
+    canClose: false,
+    hint: "Р—Р°РєСЂС‹С‚РёРµ РІСЂРµРјРµРЅРЅРѕ РѕС‚РєР»СЋС‡РµРЅРѕ: РІ С‚РµРєСѓС‰РµР№ С…РµРјРµ Р‘Р” РЅРµС‚ СЏРІРЅРѕРіРѕ РїРѕР»СЏ РґР»СЏ СЌС‚РѕРіРѕ СЃС‚Р°С‚СѓСЃР°.",
+  };
+}
+
+export function MessagesDashboard({ currentManagerId, currentUserId, dialogs }: MessagesDashboardProps) {
   const assignFormRef = useRef<HTMLFormElement>(null);
   const replyFormRef = useRef<HTMLFormElement>(null);
   const router = useRouter();
+  const { showToast } = useToast();
   const [isRefreshing, startTransition] = useTransition();
   const [assignState, assignAction, isAssigning] = useActionState(
     takeClientInWorkFormAction,
@@ -300,8 +344,9 @@ export function MessagesDashboard({ currentUserId, dialogs }: MessagesDashboardP
   const displayedMessages = [...selectedMessages].reverse();
   const replyAvailability = getReplyAvailability(selectedDialog, currentUserId);
   const assignmentAvailability = getAssignmentAvailability(selectedDialog, currentUserId);
+  const releaseAvailability = getReleaseAvailability(selectedDialog, currentUserId);
+  const closeAvailability = getCloseAvailability(selectedDialog, currentUserId);
   const clientStatus = getClientStatus(selectedDialog, currentUserId);
-  const isDialogAssigned = Boolean(selectedDialog?.manager_auth_user_id);
   const filterCounts: Record<DialogFilterId, number> = {
     all: dialogs.length,
     mine: dialogs.filter((dialog) => Boolean(currentUserId) && dialog.manager_auth_user_id === currentUserId).length,
@@ -314,29 +359,57 @@ export function MessagesDashboard({ currentUserId, dialogs }: MessagesDashboardP
 
   useEffect(() => {
     if (assignState.success) {
+      showToast(assignState.success);
       assignFormRef.current?.reset();
       startTransition(() => router.refresh());
     }
-  }, [assignState.success, router, startTransition]);
+  }, [assignState, router, showToast, startTransition]);
+
+  useEffect(() => {
+    if (assignState.error) {
+      showToast(assignState.error, "error");
+    }
+  }, [assignState, showToast]);
 
   useEffect(() => {
     if (releaseState.success) {
+      showToast(releaseState.success);
       startTransition(() => router.refresh());
     }
-  }, [releaseState.success, router, startTransition]);
+  }, [releaseState, router, showToast, startTransition]);
+
+  useEffect(() => {
+    if (releaseState.error) {
+      showToast(releaseState.error, "error");
+    }
+  }, [releaseState, showToast]);
 
   useEffect(() => {
     if (closeState.success) {
+      showToast(closeState.success);
       startTransition(() => router.refresh());
     }
-  }, [closeState.success, router, startTransition]);
+  }, [closeState, router, showToast, startTransition]);
+
+  useEffect(() => {
+    if (closeState.error) {
+      showToast(closeState.error, "error");
+    }
+  }, [closeState, showToast]);
 
   useEffect(() => {
     if (replyState.success) {
+      showToast(replyState.success);
       replyFormRef.current?.reset();
       startTransition(() => router.refresh());
     }
-  }, [replyState.success, router, startTransition]);
+  }, [replyState, router, showToast, startTransition]);
+
+  useEffect(() => {
+    if (replyState.error) {
+      showToast(replyState.error, "error");
+    }
+  }, [replyState, showToast]);
 
   return (
     <>
@@ -505,6 +578,7 @@ export function MessagesDashboard({ currentUserId, dialogs }: MessagesDashboardP
             {!selectedDialog?.manager_auth_user_id ? (
               <form ref={assignFormRef} action={assignAction} className="contents">
                 <input type="hidden" name="clientId" value={selectedDialog?.client_id ?? ""} />
+                <input type="hidden" name="currentManagerId" value={currentManagerId ?? ""} />
                 <button
                   type="submit"
                   disabled={!assignmentAvailability.canTake || isAssigning}
@@ -536,9 +610,9 @@ export function MessagesDashboard({ currentUserId, dialogs }: MessagesDashboardP
                 <div className="absolute right-0 z-20 mt-2 w-56 rounded-[0.85rem] border border-slate-800 bg-slate-950/95 p-1.5 shadow-[0_18px_44px_rgba(2,6,23,0.42)]">
                   <form ref={!selectedDialog?.manager_auth_user_id ? undefined : assignFormRef} action={assignAction}>
                     <input type="hidden" name="clientId" value={selectedDialog?.client_id ?? ""} />
+                    <input type="hidden" name="currentManagerId" value={currentManagerId ?? ""} />
                     <button
                       type="submit"
-                      onClick={closeActionsDropdown}
                       disabled={!assignmentAvailability.canTake || isAssigning}
                       className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-[13px] font-medium text-slate-200 transition hover:bg-slate-900 disabled:cursor-not-allowed disabled:text-slate-600"
                     >
@@ -547,10 +621,11 @@ export function MessagesDashboard({ currentUserId, dialogs }: MessagesDashboardP
                   </form>
                   <form action={releaseAction}>
                     <input type="hidden" name="clientId" value={selectedDialog?.client_id ?? ""} />
+                    <input type="hidden" name="currentManagerId" value={currentManagerId ?? ""} />
                     <button
                       type="submit"
-                      onClick={closeActionsDropdown}
-                      disabled={!isDialogAssigned || isReleasing}
+                      disabled={!releaseAvailability.canRelease || isReleasing}
+                      title={releaseAvailability.hint}
                       className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-[13px] font-medium text-slate-200 transition hover:bg-slate-900 disabled:cursor-not-allowed disabled:text-slate-600"
                     >
                       {isReleasing ? "Снятие..." : "Снять с работы"}
@@ -565,10 +640,11 @@ export function MessagesDashboard({ currentUserId, dialogs }: MessagesDashboardP
                   </button>
                   <form action={closeAction}>
                     <input type="hidden" name="clientId" value={selectedDialog?.client_id ?? ""} />
+                    <input type="hidden" name="currentManagerId" value={currentManagerId ?? ""} />
                     <button
                       type="submit"
-                      onClick={closeActionsDropdown}
-                      disabled={!selectedDialog || isClosing}
+                      disabled={!closeAvailability.canClose || isClosing}
+                      title={closeAvailability.hint}
                       className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-[13px] font-medium text-red-200 transition hover:bg-red-500/10 disabled:cursor-not-allowed disabled:text-slate-600"
                     >
                       {isClosing ? "Закрытие..." : "Закрыть диалог"}
@@ -581,10 +657,6 @@ export function MessagesDashboard({ currentUserId, dialogs }: MessagesDashboardP
         </div>
 
         <div className="mt-3 space-y-3">
-          <ActionMessage state={assignState} />
-          <ActionMessage state={releaseState} />
-          <ActionMessage state={closeState} />
-
           {selectedMessages.length > 0 ? (
             <div className="space-y-2.5">
               <div className="flex flex-wrap items-center justify-between gap-2 rounded-[0.85rem] border border-slate-800 bg-slate-950/65 px-2.5 py-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] sm:gap-2.5">
@@ -676,9 +748,8 @@ export function MessagesDashboard({ currentUserId, dialogs }: MessagesDashboardP
                 </div>
               </div>
 
-              <ActionMessage state={replyState} />
-
               <input type="hidden" name="clientId" value={selectedDialog?.client_id ?? ""} />
+              <input type="hidden" name="currentManagerId" value={currentManagerId ?? ""} />
               <textarea
                 name="text"
                 rows={3}

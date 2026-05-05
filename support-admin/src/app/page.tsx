@@ -22,6 +22,27 @@ const emptyStats: DashboardStats = {
   unassignedClientsCount: 0,
 };
 
+function resolveCurrentManagerId(
+  managers: ManagerSummary[],
+  user: { email?: string | null; id: string },
+): number | null {
+  const byAuthUserId = managers.find((manager) => manager.auth_user_id === user.id);
+
+  if (byAuthUserId) {
+    return byAuthUserId.id;
+  }
+
+  const normalizedEmail = user.email?.trim().toLowerCase();
+
+  if (!normalizedEmail) {
+    return null;
+  }
+
+  const byEmail = managers.find((manager) => manager.email?.trim().toLowerCase() === normalizedEmail);
+
+  return byEmail?.id ?? null;
+}
+
 function mapStats(row: MessageStatsRow | null | undefined): DashboardStats {
   if (!row) {
     return emptyStats;
@@ -85,6 +106,7 @@ async function getDashboardData(): Promise<DashboardDataResult> {
 
     if (activeChatsResult.error) {
       return {
+        currentManagerId: null,
         currentUserId: user.id,
         dialogs: [],
         errorMessage: `Failed to load active chats: ${activeChatsResult.error.message}`,
@@ -95,6 +117,7 @@ async function getDashboardData(): Promise<DashboardDataResult> {
 
     if (messagesResult.error) {
       return {
+        currentManagerId: null,
         currentUserId: user.id,
         dialogs: [],
         errorMessage: `Failed to load messages: ${messagesResult.error.message}`,
@@ -105,6 +128,7 @@ async function getDashboardData(): Promise<DashboardDataResult> {
 
     if (managersResult.error) {
       return {
+        currentManagerId: null,
         currentUserId: user.id,
         dialogs: [],
         errorMessage: `Failed to load managers: ${managersResult.error.message}`,
@@ -116,8 +140,13 @@ async function getDashboardData(): Promise<DashboardDataResult> {
     const activeChats = (activeChatsResult.data ?? []) as unknown as ActiveChatRow[];
     const messages = (messagesResult.data ?? []) as unknown as MessageRow[];
     const managers = (managersResult.data ?? []) as unknown as ManagerSummary[];
+    const currentManagerId = resolveCurrentManagerId(managers, {
+      email: user.email,
+      id: user.id,
+    });
 
     return {
+      currentManagerId,
       dialogs: buildDialogs(activeChats, messages),
       errorMessage: null,
       currentUserId: user.id,
@@ -126,6 +155,7 @@ async function getDashboardData(): Promise<DashboardDataResult> {
     };
   } catch {
     return {
+      currentManagerId: null,
       currentUserId: null,
       dialogs: [],
       errorMessage: "Check Supabase environment variables for the admin app.",
@@ -136,7 +166,7 @@ async function getDashboardData(): Promise<DashboardDataResult> {
 }
 
 export default async function Home() {
-  const { currentUserId, dialogs, errorMessage } = await getDashboardData();
+  const { currentManagerId, currentUserId, dialogs, errorMessage } = await getDashboardData();
 
   return (
     <main className="min-h-screen px-3 py-4 text-slate-100 sm:px-4 sm:py-5 lg:px-6 lg:py-6">
@@ -152,7 +182,7 @@ export default async function Home() {
           </section>
         ) : null}
 
-        <MessagesDashboard currentUserId={currentUserId} dialogs={dialogs} />
+        <MessagesDashboard currentManagerId={currentManagerId} currentUserId={currentUserId} dialogs={dialogs} />
       </div>
     </main>
   );
