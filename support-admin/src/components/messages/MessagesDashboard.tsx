@@ -12,12 +12,13 @@ import {
 import { DialogListItem } from "@/components/messages/DialogListItem";
 import { useToast } from "@/components/ui/ToastProvider";
 import { MessagesListener } from "@/features/messages/realtime/MessagesListener";
-import type { ActionResult, DialogViewModel } from "@/types/message";
+import type { ActionResult, DialogViewModel, ManagerSummary, Message } from "@/types/message";
 
 type MessagesDashboardProps = {
   currentManagerId: number | null;
   currentUserId: string | null;
   dialogs: DialogViewModel[];
+  managers?: ManagerSummary[];
 };
 
 type DialogFilterId = "all" | "mine" | "unassigned" | "assignedToOthers" | "closed";
@@ -107,6 +108,28 @@ function getOutgoingMessageLabel(dialog: DialogViewModel | null): string {
 
   if (displayName !== "Не назначен" && displayName !== "Менеджер без имени") {
     return `Ответ менеджера ${displayName}`;
+  }
+
+  return "Ответ менеджера";
+}
+
+function getManagerNameBySummary(manager: ManagerSummary | undefined): string | null {
+  if (!manager) {
+    return null;
+  }
+
+  const fullName = [manager.first_name?.trim(), manager.last_name?.trim()].filter(Boolean).join(" ");
+
+  return fullName || manager.email?.trim() || `Manager #${manager.id}`;
+}
+
+function getOutgoingMessageAuthorLabel(message: Message, managersById: Map<number, ManagerSummary>): string {
+  if (message.manager_id) {
+    const managerName = getManagerNameBySummary(managersById.get(message.manager_id));
+
+    if (managerName) {
+      return `Ответ менеджера ${managerName}`;
+    }
   }
 
   return "Ответ менеджера";
@@ -356,7 +379,12 @@ function getReopenAvailability(dialog: DialogViewModel | null): { canReopen: boo
   };
 }
 
-export function MessagesDashboard({ currentManagerId, currentUserId, dialogs }: MessagesDashboardProps) {
+export function MessagesDashboard({
+  currentManagerId,
+  currentUserId,
+  dialogs,
+  managers = [],
+}: MessagesDashboardProps) {
   const assignFormRef = useRef<HTMLFormElement>(null);
   const replyFormRef = useRef<HTMLFormElement>(null);
   const closeFormRef = useRef<HTMLFormElement>(null);
@@ -385,6 +413,7 @@ export function MessagesDashboard({ currentManagerId, currentUserId, dialogs }: 
 
   const closeActionsDropdown = () => setIsActionsDropdownOpen(false);
   const closeCloseModal = () => setIsCloseModalOpen(false);
+  const managersById = useMemo(() => new Map(managers.map((manager) => [manager.id, manager])), [managers]);
 
   const normalizedQuery = searchQuery.trim().toLowerCase();
   const filteredDialogs = useMemo(() => {
@@ -914,7 +943,7 @@ export function MessagesDashboard({ currentManagerId, currentUserId, dialogs }: 
                         <div>
                           <p className="truncate text-[12px] font-semibold tracking-[-0.02em] text-slate-50">
                             {isManagerMessage
-                              ? getOutgoingMessageLabel(selectedDialog)
+                              ? getOutgoingMessageAuthorLabel(message, managersById)
                               : message.username || "Без username"}
                           </p>
                         </div>

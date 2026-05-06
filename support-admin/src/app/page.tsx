@@ -291,7 +291,7 @@ async function getDashboardData(): Promise<DashboardDataResult> {
 }
 
 export default async function Home() {
-  const { currentManagerId, currentUserId, dialogs, errorMessage } = await getDashboardData();
+  const { currentManagerId, currentUserId, dialogs, errorMessage, managers } = await getDashboardData();
 
   return (
     <main className="min-h-screen px-3 py-4 text-slate-100 sm:px-4 sm:py-5 lg:px-6 lg:py-6">
@@ -307,7 +307,12 @@ export default async function Home() {
           </section>
         ) : null}
 
-        <MessagesDashboard currentManagerId={currentManagerId} currentUserId={currentUserId} dialogs={dialogs} />
+        <MessagesDashboard
+          currentManagerId={currentManagerId}
+          currentUserId={currentUserId}
+          dialogs={dialogs}
+          managers={managers}
+        />
       </div>
     </main>
   );
