@@ -7,7 +7,7 @@ type DialogListItemProps = {
   messageCount: number;
   onSelect?: () => void;
   preview: string;
-  statusTone: "mine" | "unassigned" | "assigned";
+  statusTone: "mine" | "unassigned" | "assigned" | "closed";
   username: string | null;
 };
 
@@ -32,6 +32,8 @@ export function DialogListItem({
   const statusClassName =
     statusTone === "mine"
       ? "bg-emerald-400"
+      : statusTone === "closed"
+        ? "bg-violet-400"
       : statusTone === "unassigned"
         ? "bg-amber-400"
         : "bg-sky-400";

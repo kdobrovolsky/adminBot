@@ -62,6 +62,18 @@ export type MessageStatsRow = {
   unassigned_clients_count: number;
 };
 
+export type DialogClosureRow = {
+  assigned_manager_id_at_close: number | null;
+  client_id: number;
+  close_comment: string;
+  close_reason: string;
+  closed_at: string;
+  closed_by_manager_id: number;
+  reopened_at: string | null;
+  reopened_by_manager_id: number | null;
+  updated_at: string;
+};
+
 export type DashboardStats = {
   activeChatsCount: number;
   incomingMessages: number;
@@ -81,9 +93,15 @@ export type DashboardDataResult = {
 
 export type DialogViewModel = {
   client_id: number;
+  closeComment?: string | null;
+  closeReason?: string | null;
+  closedAt?: string | null;
+  closedByManagerId?: number | null;
+  closedByManagerName?: string | null;
   current_manager_id: number | null;
   displayName: string;
   incomingMessages: number;
+  isClosed?: boolean;
   lastMessageAt: string;
   lastMessageText: string | null;
   manager_auth_user_id: string | null;
@@ -93,5 +111,8 @@ export type DialogViewModel = {
   messageCount: number;
   messages: Message[];
   outgoingMessages: number;
+  reopenedAt?: string | null;
+  reopenedByManagerId?: number | null;
+  reopenedByManagerName?: string | null;
   telegram_chat_id: Message["telegram_chat_id"];
 };

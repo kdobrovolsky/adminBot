@@ -6,6 +6,7 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import type {
   ActiveChatRow,
   DashboardDataResult,
+  DialogClosureRow,
   DashboardStats,
   ManagerSummary,
   MessageRow,
@@ -57,6 +58,36 @@ function mapStats(row: MessageStatsRow | null | undefined): DashboardStats {
   };
 }
 
+function getManagerDisplayName(manager: ManagerSummary | undefined): string | null {
+  if (!manager) {
+    return null;
+  }
+
+  const fullName = [manager.first_name?.trim(), manager.last_name?.trim()].filter(Boolean).join(" ");
+
+  return fullName || manager.email?.trim() || `Manager #${manager.id}`;
+}
+
+function getLatestIncomingMessageAt(messages: MessageRow[], clientId: number): string | null {
+  for (const message of messages) {
+    if (message.client_id !== clientId || message.direction !== "incoming") {
+      continue;
+    }
+
+    return message.sent_at ?? message.created_at;
+  }
+
+  return null;
+}
+
+function shouldAutoReopenDialog(closure: DialogClosureRow, latestIncomingMessageAt: string | null): boolean {
+  if (closure.reopened_at !== null || !latestIncomingMessageAt) {
+    return false;
+  }
+
+  return new Date(latestIncomingMessageAt).getTime() > new Date(closure.closed_at).getTime();
+}
+
 async function getDashboardData(): Promise<DashboardDataResult> {
   try {
     const supabase = await createServerSupabaseClient();
@@ -68,7 +99,7 @@ async function getDashboardData(): Promise<DashboardDataResult> {
       redirect("/login");
     }
 
-    const [activeChatsResult, messagesResult, statsResult, managersResult] = await Promise.all([
+    const [activeChatsResult, messagesResult, statsResult, managersResult, closuresResult] = await Promise.all([
       supabase
         .from("active_chats")
         .select(
@@ -102,6 +133,11 @@ async function getDashboardData(): Promise<DashboardDataResult> {
         .from("manager_details")
         .select("id, auth_user_id, email, first_name, last_name, company_role")
         .order("first_name", { ascending: true }),
+      supabase
+        .from("dialog_closures")
+        .select(
+          "client_id, close_reason, close_comment, closed_at, closed_by_manager_id, assigned_manager_id_at_close, reopened_at, reopened_by_manager_id, updated_at",
+        ),
     ]);
 
     if (activeChatsResult.error) {
@@ -137,17 +173,106 @@ async function getDashboardData(): Promise<DashboardDataResult> {
       };
     }
 
+    if (closuresResult.error) {
+      return {
+        currentManagerId: null,
+        currentUserId: user.id,
+        dialogs: [],
+        errorMessage: `Failed to load dialog closures: ${closuresResult.error.message}`,
+        managers: [],
+        stats: mapStats(statsResult.data),
+      };
+    }
+
     const activeChats = (activeChatsResult.data ?? []) as unknown as ActiveChatRow[];
     const messages = (messagesResult.data ?? []) as unknown as MessageRow[];
     const managers = (managersResult.data ?? []) as unknown as ManagerSummary[];
+    const closures = (closuresResult.data ?? []) as unknown as DialogClosureRow[];
     const currentManagerId = resolveCurrentManagerId(managers, {
       email: user.email,
       id: user.id,
     });
+    const closuresToAutoReopen = closures.filter((closure) =>
+      shouldAutoReopenDialog(closure, getLatestIncomingMessageAt(messages, closure.client_id)),
+    );
+
+    if (closuresToAutoReopen.length > 0) {
+      const reopenedAt = new Date().toISOString();
+      const { error: reopenSyncError } = await supabase
+        .from("dialog_closures")
+        .update({
+          reopened_at: reopenedAt,
+          reopened_by_manager_id: null,
+          updated_at: reopenedAt,
+        })
+        .in(
+          "client_id",
+          closuresToAutoReopen.map((closure) => closure.client_id),
+        )
+        .is("reopened_at", null);
+
+      if (reopenSyncError) {
+        return {
+          currentManagerId: null,
+          currentUserId: user.id,
+          dialogs: [],
+          errorMessage: `Failed to sync reopened dialogs: ${reopenSyncError.message}`,
+          managers: [],
+          stats: mapStats(statsResult.data),
+        };
+      }
+    }
+
+    const managerById = new Map(managers.map((manager) => [manager.id, manager]));
+    const activeClosureByClientId = new Map(
+      closures
+        .filter((closure) => {
+          const autoReopened = closuresToAutoReopen.some(
+            (autoReopenedClosure) => autoReopenedClosure.client_id === closure.client_id,
+          );
+
+          return closure.reopened_at === null && !autoReopened;
+        })
+        .map((closure) => [closure.client_id, closure]),
+    );
+    const dialogs = buildDialogs(activeChats, messages).map((dialog) => {
+      const closure = activeClosureByClientId.get(dialog.client_id);
+
+      if (!closure) {
+        return {
+          ...dialog,
+          closeComment: null,
+          closeReason: null,
+          closedAt: null,
+          closedByManagerId: null,
+          closedByManagerName: null,
+          isClosed: false,
+          reopenedAt: null,
+          reopenedByManagerId: null,
+          reopenedByManagerName: null,
+        };
+      }
+
+      return {
+        ...dialog,
+        closeComment: closure.close_comment,
+        closeReason: closure.close_reason,
+        closedAt: closure.closed_at,
+        closedByManagerId: closure.closed_by_manager_id,
+        closedByManagerName: getManagerDisplayName(managerById.get(closure.closed_by_manager_id)) ?? "Unknown manager",
+        isClosed: true,
+        reopenedAt: closure.reopened_at,
+        reopenedByManagerId: closure.reopened_by_manager_id,
+        reopenedByManagerName:
+          getManagerDisplayName(
+            closure.reopened_by_manager_id ? managerById.get(closure.reopened_by_manager_id) : undefined,
+          ) ?? null,
+      };
+    });
 
     return {
       currentManagerId,
-      dialogs: buildDialogs(activeChats, messages),
+      dialogs,
       errorMessage: null,
       currentUserId: user.id,
       managers,

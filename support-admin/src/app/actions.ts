@@ -93,6 +93,23 @@ async function getCurrentAssignmentManagerId(clientId: number): Promise<number |
   return data?.current_manager_id ?? null;
 }
 
+async function getDialogClosure(clientId: number) {
+  const supabase = await createServerSupabaseClient();
+  const { data, error } = await supabase
+    .from("dialog_closures")
+    .select(
+      "client_id, close_reason, close_comment, closed_at, closed_by_manager_id, assigned_manager_id_at_close, reopened_at, reopened_by_manager_id, updated_at",
+    )
+    .eq("client_id", clientId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return data;
+}
+
 async function buildFunctionsHttpErrorResult(
   prefix: string,
   error: FunctionsHttpError,
@@ -440,6 +457,7 @@ export async function closeDialogFormAction(
 ): Promise<ActionResult> {
   const clientId = Number(String(formData.get("clientId") ?? "").trim());
   const currentManagerId = await resolveCurrentManagerId(formData.get("currentManagerId"));
+  const closeReason = String(formData.get("closeReason") ?? "").trim();
 
   if (!Number.isInteger(clientId)) {
     return {
@@ -455,13 +473,34 @@ export async function closeDialogFormAction(
     };
   }
 
+  if (!closeReason) {
+    return {
+      error: "Close reason is required.",
+      success: null,
+    };
+  }
+
+
   let assignedManagerId: number | null;
+  let existingClosure:
+    | {
+        reopened_at: string | null;
+      }
+    | null;
 
   try {
     assignedManagerId = await getCurrentAssignmentManagerId(clientId);
+    existingClosure = await getDialogClosure(clientId);
   } catch (error) {
     return {
       error: `Failed to close dialog: ${(error as Error).message}`,
+      success: null,
+    };
+  }
+
+  if (existingClosure && existingClosure.reopened_at === null) {
+    return {
+      error: "Failed to close dialog: dialog is already closed.",
       success: null,
     };
   }
@@ -473,8 +512,129 @@ export async function closeDialogFormAction(
     };
   }
 
+  if (assignedManagerId === null) {
+    return {
+      error: "Failed to close dialog: dialog is not assigned.",
+      success: null,
+    };
+  }
+
+  const supabase = await createServerSupabaseClient();
+  const closedAt = new Date().toISOString();
+
+  const { error: closureError } = await supabase.from("dialog_closures").upsert(
+    {
+      assigned_manager_id_at_close: assignedManagerId,
+      client_id: clientId,
+      close_comment: "",
+      close_reason: closeReason,
+      closed_at: closedAt,
+      closed_by_manager_id: currentManagerId,
+      reopened_at: null,
+      reopened_by_manager_id: null,
+      updated_at: closedAt,
+    },
+    {
+      onConflict: "client_id",
+    },
+  );
+
+  if (closureError) {
+    return {
+      error: `Failed to close dialog: ${closureError.message}`,
+      success: null,
+    };
+  }
+
+  const { error: releaseError } = await supabase
+    .from("client_assignments")
+    .delete()
+    .eq("client_id", clientId)
+    .eq("current_manager_id", currentManagerId);
+
+  if (releaseError) {
+    await supabase.from("dialog_closures").delete().eq("client_id", clientId).eq("closed_at", closedAt);
+
+    return {
+      error: `Failed to close dialog: ${releaseError.message}`,
+      success: null,
+    };
+  }
+
+  revalidatePath("/");
+
   return {
-    error: "Close dialog is not configured for the current database schema.",
-    success: null,
+    error: null,
+    success: "Dialog closed.",
+  };
+}
+
+export async function reopenDialogFormAction(
+  _previousState: ActionResult,
+  formData: FormData,
+): Promise<ActionResult> {
+  const clientId = Number(String(formData.get("clientId") ?? "").trim());
+  const currentManagerId = await resolveCurrentManagerId(formData.get("currentManagerId"));
+
+  if (!Number.isInteger(clientId)) {
+    return {
+      error: "Client is required.",
+      success: null,
+    };
+  }
+
+  if (!currentManagerId) {
+    return {
+      error: "Current manager is required.",
+      success: null,
+    };
+  }
+
+  let existingClosure:
+    | {
+        reopened_at: string | null;
+      }
+    | null;
+
+  try {
+    existingClosure = await getDialogClosure(clientId);
+  } catch (error) {
+    return {
+      error: `Failed to reopen dialog: ${(error as Error).message}`,
+      success: null,
+    };
+  }
+
+  if (!existingClosure || existingClosure.reopened_at !== null) {
+    return {
+      error: "Failed to reopen dialog: dialog is not closed.",
+      success: null,
+    };
+  }
+
+  const supabase = await createServerSupabaseClient();
+  const reopenedAt = new Date().toISOString();
+  const { error } = await supabase
+    .from("dialog_closures")
+    .update({
+      reopened_at: reopenedAt,
+      reopened_by_manager_id: currentManagerId,
+      updated_at: reopenedAt,
+    })
+    .eq("client_id", clientId)
+    .is("reopened_at", null);
+
+  if (error) {
+    return {
+      error: `Failed to reopen dialog: ${error.message}`,
+      success: null,
+    };
+  }
+
+  revalidatePath("/");
+
+  return {
+    error: null,
+    success: "Dialog reopened and returned to the queue.",
   };
 }
