@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { ToastProvider } from "@/components/ui/ToastProvider";
 import "./globals.css";
+import {ReactNode} from "react";
 
 export const metadata: Metadata = {
   title: "SupportBot Admin",
@@ -10,7 +11,7 @@ export const metadata: Metadata = {
 export default function RootLayout({
   children,
 }: Readonly<{
-  children: React.ReactNode;
+  children: ReactNode;
 }>) {
   return (
     <html lang="ru" className="h-full antialiased">
