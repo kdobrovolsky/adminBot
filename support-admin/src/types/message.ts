@@ -3,6 +3,10 @@ export type ActionResult = {
   success: string | null;
 };
 
+export type AiInteractionPriority = "low" | "normal" | "urgent";
+
+export type AiInteractionStatus = "answered" | "handoff" | "skipped_assigned" | "error";
+
 export type ManagerSummary = {
   auth_user_id: string;
   company_role: string | null;
@@ -32,6 +36,13 @@ export type MessageRow = {
   manager_id: number | null;
   message_text: string | null;
   sent_at: string | null;
+};
+
+export type AiInteractionRow = {
+  client_id: number;
+  created_at: string;
+  priority: AiInteractionPriority;
+  status: AiInteractionStatus;
 };
 
 export type ActiveChatRow = {
@@ -92,6 +103,9 @@ export type DashboardDataResult = {
 };
 
 export type DialogViewModel = {
+  aiInteractionCreatedAt?: string | null;
+  aiInteractionPriority?: AiInteractionPriority | null;
+  aiInteractionStatus?: AiInteractionStatus | null;
   client_id: number;
   closeComment?: string | null;
   closeReason?: string | null;

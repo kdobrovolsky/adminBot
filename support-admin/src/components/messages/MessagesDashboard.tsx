@@ -10,6 +10,7 @@ import {
   takeClientInWorkFormAction,
 } from "@/app/actions";
 import { DialogListItem } from "@/components/messages/DialogListItem";
+import { PriorityBadge } from "@/components/messages/PriorityBadge";
 import { useToast } from "@/components/ui/ToastProvider";
 import { MessagesListener } from "@/features/messages/realtime/MessagesListener";
 import type { ActionResult, DialogViewModel, ManagerSummary, Message } from "@/types/message";
@@ -704,6 +705,7 @@ export function MessagesDashboard({
                     isActive={dialog.telegram_chat_id === selectedDialog?.telegram_chat_id}
                     lastMessageAt={dialog.lastMessageAt}
                     messageCount={dialog.messageCount}
+                    priority={dialog.aiInteractionPriority}
                     onSelect={() => {
                       setSelectedChatId(dialog.telegram_chat_id);
                       setCurrentPage(1);
@@ -795,6 +797,10 @@ export function MessagesDashboard({
               >
                 {clientStatus.label}
               </span>
+
+              {selectedDialog?.aiInteractionPriority ? (
+                <PriorityBadge priority={selectedDialog.aiInteractionPriority} />
+              ) : null}
 
               <div className="relative">
                 <button
@@ -980,7 +986,9 @@ export function MessagesDashboard({
               <div className="flex flex-col gap-2.5">
                 <div className="flex items-center justify-between gap-2.5">
                   <div>
-                    <p className="text-[13px] font-semibold text-slate-100">Ответ менеджера</p>
+                    <p className="text-[13px] font-semibold text-slate-100">
+                      {getOutgoingMessageLabel(selectedDialog)}
+                    </p>
                     <p className="mt-0.5 text-[12px] text-slate-400">{replyAvailability.hint}</p>
                   </div>
                 </div>

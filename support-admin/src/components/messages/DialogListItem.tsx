@@ -1,3 +1,6 @@
+import { PriorityBadge } from "@/components/messages/PriorityBadge";
+import type { AiInteractionPriority } from "@/types/message";
+
 type DialogListItemProps = {
   assignedLabel: string;
   chatId: number | string;
@@ -7,6 +10,7 @@ type DialogListItemProps = {
   messageCount: number;
   onSelect?: () => void;
   preview: string;
+  priority?: AiInteractionPriority | null;
   statusTone: "mine" | "unassigned" | "assigned" | "closed";
   username: string | null;
 };
@@ -25,6 +29,7 @@ export function DialogListItem({
   messageCount,
   onSelect,
   preview,
+  priority,
   statusTone,
   username,
 }: DialogListItemProps) {
@@ -104,7 +109,10 @@ export function DialogListItem({
 
       <div className="mt-2 flex items-center justify-between gap-2 text-[10px] text-slate-500">
         <span className="truncate">{assignedLabel}</span>
-        {hasIncomingMessages ? <span className="shrink-0 text-amber-200/80">new</span> : null}
+        <div className="flex shrink-0 items-center gap-1.5">
+          {priority ? <PriorityBadge priority={priority} /> : null}
+          {hasIncomingMessages ? <span className="text-amber-200/80">new</span> : null}
+        </div>
       </div>
 
       <div className="mt-1.5 rounded-[0.75rem] border border-white/5 bg-black/10 px-2.5 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]">

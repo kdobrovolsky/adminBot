@@ -3,12 +3,12 @@ import { buildDialogs } from "@/lib/dialogs";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import type {
     ActiveChatRow,
+    AiInteractionRow,
     DashboardDataResult,
     DialogClosureRow,
     ManagerSummary,
     MessageRow,
 } from "@/types/message";
-import { emptyStats } from "../constants/emptyStats";
 import { getLatestIncomingMessageAt } from "../lib/getLatestIncomingMessageAt";
 import { getManagerDisplayName } from "../lib/getManagerDisplayName";
 import { mapStats } from "../lib/mapStats";
@@ -26,8 +26,7 @@ export async function getDashboardData(): Promise<DashboardDataResult> {
         redirect("/login");
     }
 
-
-        const [activeChatsResult, messagesResult, statsResult, managersResult, closuresResult] =
+        const [activeChatsResult, messagesResult, statsResult, managersResult, closuresResult, aiInteractionsResult] =
             await Promise.all([
                 supabase
                     .from("active_chats")
@@ -71,6 +70,11 @@ export async function getDashboardData(): Promise<DashboardDataResult> {
                     .select(
                         "client_id, close_reason, close_comment, closed_at, closed_by_manager_id, assigned_manager_id_at_close, reopened_at, reopened_by_manager_id, updated_at",
                     ),
+
+                supabase
+                    .from("ai_interactions")
+                    .select("client_id, created_at, priority, status")
+                    .order("created_at", { ascending: false }),
             ]);
 
         if (activeChatsResult.error) {
@@ -117,10 +121,22 @@ export async function getDashboardData(): Promise<DashboardDataResult> {
             };
         }
 
+        if (aiInteractionsResult.error) {
+            return {
+                currentManagerId: null,
+                currentUserId: user.id,
+                dialogs: [],
+                errorMessage: `Failed to load AI interactions: ${aiInteractionsResult.error.message}`,
+                managers: [],
+                stats: mapStats(statsResult.data),
+            };
+        }
+
         const activeChats = (activeChatsResult.data ?? []) as unknown as ActiveChatRow[];
         const messages = (messagesResult.data ?? []) as unknown as MessageRow[];
         const managers = (managersResult.data ?? []) as unknown as ManagerSummary[];
         const closures = (closuresResult.data ?? []) as unknown as DialogClosureRow[];
+        const aiInteractions = (aiInteractionsResult.data ?? []) as unknown as AiInteractionRow[];
 
         const currentManagerId = resolveCurrentManagerId(managers, {
             email: user.email,
@@ -163,6 +179,13 @@ export async function getDashboardData(): Promise<DashboardDataResult> {
         }
 
         const managerById = new Map(managers.map((manager) => [manager.id, manager]));
+        const latestAiInteractionByClientId = new Map<number, AiInteractionRow>();
+
+        for (const interaction of aiInteractions) {
+            if (!latestAiInteractionByClientId.has(interaction.client_id)) {
+                latestAiInteractionByClientId.set(interaction.client_id, interaction);
+            }
+        }
 
         const activeClosureByClientId = new Map(
             closures
@@ -178,10 +201,14 @@ export async function getDashboardData(): Promise<DashboardDataResult> {
 
         const dialogs = buildDialogs(activeChats, messages).map((dialog) => {
             const closure = activeClosureByClientId.get(dialog.client_id);
+            const latestAiInteraction = latestAiInteractionByClientId.get(dialog.client_id);
 
             if (!closure) {
                 return {
                     ...dialog,
+                    aiInteractionCreatedAt: latestAiInteraction?.created_at ?? null,
+                    aiInteractionPriority: latestAiInteraction?.priority ?? null,
+                    aiInteractionStatus: latestAiInteraction?.status ?? null,
                     closeComment: null,
                     closeReason: null,
                     closedAt: null,
@@ -196,6 +223,9 @@ export async function getDashboardData(): Promise<DashboardDataResult> {
 
             return {
                 ...dialog,
+                aiInteractionCreatedAt: latestAiInteraction?.created_at ?? null,
+                aiInteractionPriority: latestAiInteraction?.priority ?? null,
+                aiInteractionStatus: latestAiInteraction?.status ?? null,
                 closeComment: closure.close_comment,
                 closeReason: closure.close_reason,
                 closedAt: closure.closed_at,
