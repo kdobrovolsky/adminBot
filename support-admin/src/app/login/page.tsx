@@ -21,7 +21,7 @@ export default async function LoginPage() {
   return (
     <AuthPageShell
       title="Login"
-      description="Введите email и пароль для входа в админку. Сессия хранится в cookie через Supabase SSR."
+      description="Введите email и пароль для входа в админку. "
       backHref="/"
       backLabel="Назад в админку"
     >
