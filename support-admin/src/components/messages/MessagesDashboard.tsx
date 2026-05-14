@@ -1045,7 +1045,7 @@ export function MessagesDashboard({
 
                   return (
                     <article
-                      key={`${message.telegram_chat_id}-${message.created_at}`}
+                      key={message.render_key}
                       className={[
                         "w-full max-w-[78%] rounded-[0.75rem] border px-3 py-2 shadow-[0_6px_16px_rgba(2,6,23,0.18)] sm:max-w-[64%]",
                         isManagerMessage

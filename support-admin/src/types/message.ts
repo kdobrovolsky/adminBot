@@ -21,6 +21,7 @@ export type Message = {
   created_at: string;
   direction: string | null;
   manager_id: number | null;
+  render_key: string;
   telegram_chat_id: number | string;
   text: string | null;
   username: string | null;

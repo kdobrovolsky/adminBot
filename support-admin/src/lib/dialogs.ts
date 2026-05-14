@@ -23,6 +23,7 @@ function getMessageTimestamp(message: Pick<Message, "created_at" | "sent_at">): 
 export function buildDialogs(activeChats: ActiveChatRow[], messageRows: MessageRow[]): DialogViewModel[] {
   const chatByClientId = new Map(activeChats.map((chat) => [chat.client_id, chat]));
   const messagesByClientId = new Map<number, Message[]>();
+  const messageOccurrencesByClientId = new Map<number, Map<string, number>>();
 
   for (const row of messageRows) {
     const chat = chatByClientId.get(row.client_id);
@@ -31,6 +32,21 @@ export function buildDialogs(activeChats: ActiveChatRow[], messageRows: MessageR
       continue;
     }
 
+    const clientMessageOccurrences =
+      messageOccurrencesByClientId.get(row.client_id) ?? new Map<string, number>();
+    const messageSignature = [
+      row.client_id,
+      row.created_at,
+      row.sent_at ?? "",
+      row.direction ?? "",
+      row.manager_id ?? "",
+      row.message_text ?? "",
+    ].join(":");
+    const occurrence = (clientMessageOccurrences.get(messageSignature) ?? 0) + 1;
+
+    clientMessageOccurrences.set(messageSignature, occurrence);
+    messageOccurrencesByClientId.set(row.client_id, clientMessageOccurrences);
+
     const message: Message = {
       client_id: row.client_id,
       created_at: row.created_at,
@@ -38,6 +54,7 @@ export function buildDialogs(activeChats: ActiveChatRow[], messageRows: MessageR
       first_name: chat.first_name,
       last_name: chat.last_name,
       manager_id: row.manager_id,
+      render_key: `${messageSignature}:${occurrence}`,
       sent_at: row.sent_at,
       telegram_chat_id: chat.telegram_chat_id,
       text: row.message_text,
