@@ -137,10 +137,10 @@ async function buildFunctionsHttpErrorResult(
 }
 
 async function assignClientToManagerInternal({
-  changedByManagerId,
+  changedByManagerId: _changedByManagerId,
   clientId,
   newManagerId,
-  reassignmentReason,
+  reassignmentReason: _reassignmentReason,
 }: {
   changedByManagerId: number;
   clientId: number;
@@ -148,31 +148,56 @@ async function assignClientToManagerInternal({
   reassignmentReason?: string;
 }): Promise<ActionResult> {
   const supabase = await createServerSupabaseClient();
-  const { error } = await supabase.functions.invoke("assign-client-to-manager", {
-    body: {
-      changedByManagerId,
-      clientId,
-      newManagerId,
-      reassignmentReason: reassignmentReason?.trim() || undefined,
-    },
-  });
+  void _changedByManagerId;
+  void _reassignmentReason;
+  const existingClosure = await getDialogClosure(clientId);
 
-  if (error) {
-    if (error instanceof FunctionsHttpError) {
-      return buildFunctionsHttpErrorResult("Failed to assign client", error);
-    }
+  if (existingClosure && existingClosure.reopened_at === null) {
+    return {
+      error: "Failed to assign client: dialog is closed.",
+      success: null,
+    };
+  }
 
-    if (error instanceof FunctionsRelayError || error instanceof FunctionsFetchError) {
+  const { data: updatedAssignment, error: updateError } = await supabase
+    .from("client_assignments")
+    .update({
+      current_manager_id: newManagerId,
+    })
+    .eq("client_id", clientId)
+    .select("id")
+    .maybeSingle();
+
+  if (updateError) {
+    return {
+      error: `Failed to assign client: ${updateError.message}`,
+      success: null,
+    };
+  }
+
+  if (!updatedAssignment) {
+    const { data: insertedAssignment, error: insertError } = await supabase
+      .from("client_assignments")
+      .insert({
+        client_id: clientId,
+        current_manager_id: newManagerId,
+      })
+      .select("id")
+      .maybeSingle();
+
+    if (insertError) {
       return {
-        error: `Failed to assign client: ${error.message}`,
+        error: `Failed to assign client: ${insertError.message}`,
         success: null,
       };
     }
 
-    return {
-      error: `Failed to assign client: ${error.message}`,
-      success: null,
-    };
+    if (!insertedAssignment) {
+      return {
+        error: "Failed to assign client: assignment row was not created.",
+        success: null,
+      };
+    }
   }
 
   revalidatePath("/");
@@ -207,6 +232,24 @@ export async function assignClientToManagerAction({
   if (!currentManager) {
     return {
       error: "Current user is not linked to public.manager_details.",
+      success: null,
+    };
+  }
+
+  let assignedManagerId: number | null;
+
+  try {
+    assignedManagerId = await getCurrentAssignmentManagerId(parsedClientId);
+  } catch (error) {
+    return {
+      error: `Failed to assign client: ${(error as Error).message}`,
+      success: null,
+    };
+  }
+
+  if (assignedManagerId === parsedManagerId) {
+    return {
+      error: "Failed to assign client: dialog is already assigned to this manager.",
       success: null,
     };
   }

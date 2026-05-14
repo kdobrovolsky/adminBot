@@ -3,11 +3,11 @@
 import { useActionState, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
+  assignClientToManagerFormAction,
   closeDialogFormAction,
   releaseClientFromWorkFormAction,
   reopenDialogFormAction,
   sendManagerMessageFormAction,
-  takeClientInWorkFormAction,
 } from "@/app/actions";
 import { DialogListItem } from "@/components/messages/DialogListItem";
 import { PriorityBadge } from "@/components/messages/PriorityBadge";
@@ -122,6 +122,37 @@ function getManagerNameBySummary(manager: ManagerSummary | undefined): string | 
   const fullName = [manager.first_name?.trim(), manager.last_name?.trim()].filter(Boolean).join(" ");
 
   return fullName || manager.email?.trim() || `Manager #${manager.id}`;
+}
+
+function getManagerNameParts(manager: ManagerSummary): {
+  fallbackLabel: string;
+  fullName: string;
+  hasCompleteName: boolean;
+} {
+  const firstName = manager.first_name?.trim() ?? "";
+  const lastName = manager.last_name?.trim() ?? "";
+  const fullName = [firstName, lastName].filter(Boolean).join(" ");
+
+  return {
+    fallbackLabel: manager.email?.trim() || `Manager #${manager.id}`,
+    fullName,
+    hasCompleteName: Boolean(firstName && lastName),
+  };
+}
+
+function getManagerOptionLabel(
+  manager: ManagerSummary,
+  fullNameCounts: Map<string, number>,
+): string {
+  const { fallbackLabel, fullName, hasCompleteName } = getManagerNameParts(manager);
+
+  if (!fullName) {
+    return fallbackLabel;
+  }
+
+  const shouldShowFallback = !hasCompleteName || (fullNameCounts.get(fullName) ?? 0) > 1;
+
+  return shouldShowFallback ? `${fullName} (${fallbackLabel})` : fullName;
 }
 
 function getOutgoingMessageAuthorLabel(message: Message, managersById: Map<number, ManagerSummary>): string {
@@ -386,14 +417,14 @@ export function MessagesDashboard({
   dialogs,
   managers = [],
 }: MessagesDashboardProps) {
-  const assignFormRef = useRef<HTMLFormElement>(null);
+  const assignmentFormRef = useRef<HTMLFormElement>(null);
   const replyFormRef = useRef<HTMLFormElement>(null);
   const closeFormRef = useRef<HTMLFormElement>(null);
   const router = useRouter();
   const { showToast } = useToast();
   const [isRefreshing, startTransition] = useTransition();
   const [assignState, assignAction, isAssigning] = useActionState(
-    takeClientInWorkFormAction,
+    assignClientToManagerFormAction,
     initialActionState,
   );
   const [releaseState, releaseAction, isReleasing] = useActionState(
@@ -415,6 +446,21 @@ export function MessagesDashboard({
   const closeActionsDropdown = () => setIsActionsDropdownOpen(false);
   const closeCloseModal = () => setIsCloseModalOpen(false);
   const managersById = useMemo(() => new Map(managers.map((manager) => [manager.id, manager])), [managers]);
+  const managerFullNameCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+
+    for (const manager of managers) {
+      const { fullName } = getManagerNameParts(manager);
+
+      if (!fullName) {
+        continue;
+      }
+
+      counts.set(fullName, (counts.get(fullName) ?? 0) + 1);
+    }
+
+    return counts;
+  }, [managers]);
 
   const normalizedQuery = searchQuery.trim().toLowerCase();
   const filteredDialogs = useMemo(() => {
@@ -454,6 +500,21 @@ export function MessagesDashboard({
   const closeAvailability = getCloseAvailability(selectedDialog, currentUserId);
   const reopenAvailability = getReopenAvailability(selectedDialog);
   const clientStatus = getClientStatus(selectedDialog, currentUserId);
+  const currentAssignedManagerId = selectedDialog?.current_manager_id ?? null;
+  const assignableManagers = managers
+    .filter((manager) => manager.id !== currentAssignedManagerId)
+    .map((manager) => ({
+      id: manager.id,
+      label: getManagerOptionLabel(manager, managerFullNameCounts),
+    }));
+  const canAssignDialog = Boolean(selectedDialog && !selectedDialog.isClosed);
+  const assignmentHint = !selectedDialog
+    ? "Сначала выберите диалог."
+    : selectedDialog.isClosed
+      ? "Закрытый диалог сначала нужно переоткрыть."
+      : assignableManagers.length === 0
+        ? "Нет доступных менеджеров для назначения."
+        : "Выберите менеджера и назначьте диалог.";
   const openDialogs = dialogs.filter((dialog) => !dialog.isClosed);
   const closedDialogs = dialogs.filter((dialog) => dialog.isClosed);
   const filterCounts: Record<DialogFilterId, number> = {
@@ -470,7 +531,7 @@ export function MessagesDashboard({
   useEffect(() => {
     if (assignState.success) {
       showToast(assignState.success);
-      assignFormRef.current?.reset();
+      assignmentFormRef.current?.reset();
       startTransition(() => router.refresh());
     }
   }, [assignState, router, showToast, startTransition]);
@@ -765,9 +826,10 @@ export function MessagesDashboard({
 
             <div className="flex flex-wrap items-center gap-2 lg:justify-end">
               {!selectedDialog?.manager_auth_user_id && !selectedDialog?.isClosed ? (
-                <form ref={assignFormRef} action={assignAction} className="contents">
+                <form action={assignAction} className="contents">
                   <input type="hidden" name="clientId" value={selectedDialog?.client_id ?? ""} />
                   <input type="hidden" name="currentManagerId" value={currentManagerId ?? ""} />
+                  <input type="hidden" name="newManagerId" value={currentManagerId ?? ""} />
                   <button
                     type="submit"
                     disabled={!assignmentAvailability.canTake || isAssigning}
@@ -819,6 +881,7 @@ export function MessagesDashboard({
                       <form action={assignAction}>
                         <input type="hidden" name="clientId" value={selectedDialog?.client_id ?? ""} />
                         <input type="hidden" name="currentManagerId" value={currentManagerId ?? ""} />
+                        <input type="hidden" name="newManagerId" value={currentManagerId ?? ""} />
                         <button
                           type="submit"
                           disabled={!assignmentAvailability.canTake || isAssigning}
@@ -896,6 +959,56 @@ export function MessagesDashboard({
                     {selectedDialog.closedAt ? dateFormatter.format(new Date(selectedDialog.closedAt)) : "Не указана"}
                   </p>
                 </div>
+              </div>
+            </section>
+          ) : null}
+
+          {!selectedDialog?.isClosed ? (
+            <section className="mt-3 rounded-[0.95rem] border border-slate-800 bg-slate-950/55 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+                <div>
+                  <p className="text-[13px] font-semibold text-slate-100">Назначение диалога</p>
+                  <p className="mt-0.5 text-[12px] text-slate-400">{assignmentHint}</p>
+                </div>
+
+                <form
+                  key={selectedDialog?.client_id ?? "no-dialog"}
+                  ref={assignmentFormRef}
+                  action={assignAction}
+                  className="flex w-full flex-col gap-2.5 lg:w-auto lg:min-w-[28rem] lg:flex-row lg:items-end"
+                >
+                  <input type="hidden" name="clientId" value={selectedDialog?.client_id ?? ""} />
+                  <input type="hidden" name="currentManagerId" value={currentManagerId ?? ""} />
+
+                  <div className="flex-1">
+                    <label htmlFor="assign-manager" className="text-[12px] font-semibold text-slate-200">
+                      Менеджер
+                    </label>
+                    <select
+                      id="assign-manager"
+                      name="newManagerId"
+                      defaultValue=""
+                      required
+                      disabled={!canAssignDialog || isAssigning || assignableManagers.length === 0}
+                      className="mt-1.5 w-full rounded-[0.85rem] border border-slate-800 bg-slate-950/80 px-3 py-2 text-[13px] text-slate-100 outline-none transition focus:border-sky-400/60 disabled:cursor-not-allowed disabled:text-slate-500"
+                    >
+                      <option value="">Выберите менеджера</option>
+                      {assignableManagers.map((manager) => (
+                        <option key={manager.id} value={manager.id}>
+                          {manager.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={!canAssignDialog || isAssigning || assignableManagers.length === 0}
+                    className={`${secondaryButtonClassName} min-w-[140px]`}
+                  >
+                    {isAssigning ? "Назначение..." : "Назначить"}
+                  </button>
+                </form>
               </div>
             </section>
           ) : null}
