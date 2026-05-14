@@ -15,7 +15,13 @@ import { mapStats } from "../lib/mapStats";
 import { resolveCurrentManagerId } from "../lib/resolveCurrentManagerId";
 import { shouldAutoReopenDialog } from "../lib/shouldAutoReopenDialog";
 
-export async function getDashboardData(): Promise<DashboardDataResult> {
+type LoadDashboardDataOptions = {
+    redirectOnUnauthenticated: boolean;
+};
+
+export async function loadDashboardData(
+    options: LoadDashboardDataOptions,
+): Promise<DashboardDataResult | null> {
     const supabase = await createServerSupabaseClient();
 
     const {
@@ -23,7 +29,11 @@ export async function getDashboardData(): Promise<DashboardDataResult> {
     } = await supabase.auth.getUser();
 
     if (!user) {
-        redirect("/login");
+        if (options.redirectOnUnauthenticated) {
+            redirect("/login");
+        }
+
+        return null;
     }
 
         const [activeChatsResult, messagesResult, statsResult, managersResult, closuresResult, aiInteractionsResult] =
@@ -253,4 +263,16 @@ export async function getDashboardData(): Promise<DashboardDataResult> {
             managers,
             stats: mapStats(statsResult.data),
         };
+}
+
+export async function getDashboardData(): Promise<DashboardDataResult> {
+    const result = await loadDashboardData({
+        redirectOnUnauthenticated: true,
+    });
+
+    if (!result) {
+        redirect("/login");
+    }
+
+    return result;
 }

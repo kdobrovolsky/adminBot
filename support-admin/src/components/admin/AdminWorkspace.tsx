@@ -4,13 +4,11 @@ import { useState } from "react";
 import { DashboardHeader } from "@/components/messages/DashboardHeader";
 import { MessagesDashboard } from "@/components/messages/MessagesDashboard";
 import { KnowledgeBaseSection } from "@/components/knowledge-base/KnowledgeBaseSection";
-import type { DialogViewModel, ManagerSummary } from "@/types/message";
+import { useDashboardData } from "@/features/dashbord/queries/useDashboardData";
+import type { DashboardDataResult } from "@/types/message";
 
 type AdminWorkspaceProps = {
-  currentManagerId: number | null;
-  currentUserId: string | null;
-  dialogs: DialogViewModel[];
-  managers?: ManagerSummary[];
+  initialData: DashboardDataResult;
 };
 
 type AdminTabId = "ai-integration" | "knowledge-base";
@@ -29,13 +27,18 @@ const tabs: Array<{ description: string; id: AdminTabId; label: string }> = [
 ];
 
 export function AdminWorkspace({
-  currentManagerId,
-  currentUserId,
-  dialogs,
-  managers,
+  initialData,
 }: AdminWorkspaceProps) {
   const [activeTab, setActiveTab] = useState<AdminTabId>("ai-integration");
+  const { data } = useDashboardData(initialData);
   const activeTabMeta = tabs.find((tab) => tab.id === activeTab) ?? tabs[0];
+  const {
+    currentManagerId,
+    currentUserId,
+    dialogs,
+    errorMessage,
+    managers,
+  } = data;
 
   return (
     <>
@@ -43,6 +46,15 @@ export function AdminWorkspace({
         description={activeTabMeta.description}
         title={activeTabMeta.label}
       />
+
+      {errorMessage ? (
+        <section className="rounded-[1rem] border border-red-500/20 bg-[linear-gradient(180deg,rgba(69,10,10,0.48),rgba(127,29,29,0.18))] px-4 py-3 shadow-[0_12px_34px_rgba(69,10,10,0.14)] sm:px-5">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-red-300">
+            Data Error
+          </p>
+          <p className="mt-2 text-sm leading-6 text-red-200">{errorMessage}</p>
+        </section>
+      ) : null}
 
       <section className="rounded-[1.1rem] border border-slate-800/80 bg-[linear-gradient(180deg,rgba(2,6,23,0.9),rgba(15,23,42,0.78))] p-2 shadow-[0_14px_36px_rgba(2,6,23,0.24)]">
         <div className="flex flex-wrap gap-2">

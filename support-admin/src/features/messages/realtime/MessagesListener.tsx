@@ -1,15 +1,16 @@
 "use client";
 
+import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import type { RealtimePostgresChangesPayload } from "@supabase/supabase-js";
+import { dashboardQueryKey } from "@/features/dashbord/queryKeys";
 import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
 
 type MessageRealtimeRow = Record<string, unknown>;
 type MessageRealtimePayload = RealtimePostgresChangesPayload<MessageRealtimeRow>;
 
 export function MessagesListener() {
-  const router = useRouter();
+  const queryClient = useQueryClient();
   const [, startTransition] = useTransition();
 
   useEffect(() => {
@@ -25,7 +26,9 @@ export function MessagesListener() {
         },
         (payload: MessageRealtimePayload) => {
           console.log("Realtime payload:", payload);
-          startTransition(() => router.refresh());
+          startTransition(() => {
+            void queryClient.invalidateQueries({ queryKey: dashboardQueryKey });
+          });
         },
       )
       .subscribe();
@@ -33,7 +36,7 @@ export function MessagesListener() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [router, startTransition]);
+  }, [queryClient, startTransition]);
 
   return null;
 }
