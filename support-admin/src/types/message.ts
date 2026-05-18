@@ -3,7 +3,7 @@ export type ActionResult = {
   success: string | null;
 };
 
-export type AiInteractionPriority = "low" | "normal" | "urgent";
+export type AiInteractionPriority = "low" | "normal" | "urgent" | "hard";
 
 export type AiInteractionStatus = "answered" | "handoff" | "skipped_assigned" | "error";
 
