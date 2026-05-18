@@ -106,6 +106,7 @@ export function KnowledgeBaseSection() {
   const [formState, setFormState] = useState<FormState>(emptyFormState);
   const [isSaving, setIsSaving] = useState(false);
   const [toggleDocumentId, setToggleDocumentId] = useState<number | null>(null);
+  const [deleteDocumentId, setDeleteDocumentId] = useState<number | null>(null);
   const [saveFeedback, setSaveFeedback] = useState<SaveFeedback>(null);
   const [currentPage, setCurrentPage] = useState(1);
 
@@ -248,7 +249,7 @@ export function KnowledgeBaseSection() {
   };
 
   const handleToggleActive = async (document: KnowledgeDocument) => {
-    if (toggleDocumentId || isSaving) {
+    if (toggleDocumentId || deleteDocumentId || isSaving) {
       return;
     }
 
@@ -285,6 +286,58 @@ export function KnowledgeBaseSection() {
       showToast(message, "error");
     } finally {
       setToggleDocumentId(null);
+    }
+  };
+
+  const handleDeleteDocument = async (document: KnowledgeDocument) => {
+    if (deleteDocumentId || toggleDocumentId || isSaving) {
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Delete article "${document.title}"? This action cannot be undone.`,
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setDeleteDocumentId(document.id);
+    setSaveFeedback(null);
+
+    try {
+      const { data, error } = await supabase
+        .from("knowledge_documents")
+        .delete()
+        .eq("id", document.id)
+        .select("id")
+        .maybeSingle();
+
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      if (!data) {
+        throw new Error("Article was not deleted.");
+      }
+
+      showToast("Article deleted.");
+
+      const nextDocuments = await loadDocuments();
+
+      if (formState.documentId === document.id) {
+        resetForm();
+      }
+
+      if (nextDocuments.length === 0) {
+        setCurrentPage(1);
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to delete article.";
+      setSaveFeedback({ message, tone: "error" });
+      showToast(message, "error");
+    } finally {
+      setDeleteDocumentId(null);
     }
   };
 
@@ -352,6 +405,7 @@ export function KnowledgeBaseSection() {
               <div className="space-y-3">
                 {pageDocuments.map((document) => {
                   const isTogglePending = toggleDocumentId === document.id;
+                  const isDeletePending = deleteDocumentId === document.id;
 
                   return (
                     <article
@@ -391,7 +445,7 @@ export function KnowledgeBaseSection() {
                           <button
                             type="button"
                             onClick={() => void handleToggleActive(document)}
-                            disabled={isTogglePending || isSaving}
+                            disabled={isTogglePending || isDeletePending || isSaving}
                             className="rounded-full border border-slate-700 bg-slate-950/70 px-3 py-1.5 text-[12px] font-semibold text-slate-200 transition hover:border-slate-600 hover:bg-slate-900 disabled:cursor-not-allowed disabled:text-slate-500"
                           >
                             {isTogglePending
@@ -403,9 +457,18 @@ export function KnowledgeBaseSection() {
                           <button
                             type="button"
                             onClick={() => applyDocumentToForm(document)}
+                            disabled={isDeletePending || isSaving}
                             className="rounded-full border border-sky-500/30 bg-sky-500/10 px-3 py-1.5 text-[12px] font-semibold text-sky-100 transition hover:bg-sky-500/20"
                           >
                             Edit
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void handleDeleteDocument(document)}
+                            disabled={isDeletePending || isTogglePending || isSaving}
+                            className="rounded-full border border-red-500/30 bg-red-500/10 px-3 py-1.5 text-[12px] font-semibold text-red-100 transition hover:bg-red-500/20 disabled:cursor-not-allowed disabled:border-slate-800 disabled:bg-slate-900/70 disabled:text-slate-500"
+                          >
+                            {isDeletePending ? "Deleting..." : "Delete"}
                           </button>
                         </div>
                       </div>
@@ -559,7 +622,7 @@ export function KnowledgeBaseSection() {
           <div className="flex flex-wrap items-center gap-2">
             <button
               type="submit"
-              disabled={isSaving}
+              disabled={isSaving || deleteDocumentId !== null}
               className="rounded-full border border-sky-500/30 bg-sky-500/10 px-4 py-2 text-[12px] font-semibold text-sky-50 transition hover:bg-sky-500/20 disabled:cursor-not-allowed disabled:border-slate-800 disabled:bg-slate-900/70 disabled:text-slate-500"
             >
               {isSaving ? "Saving..." : isEditMode ? "Save changes" : "Create article"}
@@ -567,7 +630,7 @@ export function KnowledgeBaseSection() {
             <button
               type="button"
               onClick={resetForm}
-              disabled={isSaving}
+              disabled={isSaving || deleteDocumentId !== null}
               className="rounded-full border border-slate-700 bg-slate-950/70 px-4 py-2 text-[12px] font-semibold text-slate-200 transition hover:border-slate-600 hover:bg-slate-900 disabled:cursor-not-allowed disabled:text-slate-500"
             >
               Clear form
