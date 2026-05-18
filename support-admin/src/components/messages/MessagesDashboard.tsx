@@ -1,5 +1,6 @@
 "use client";
 
+import { useQueryClient } from "@tanstack/react-query";
 import { useActionState, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -12,8 +13,9 @@ import {
 import { DialogListItem } from "@/components/messages/DialogListItem";
 import { PriorityBadge } from "@/components/messages/PriorityBadge";
 import { useToast } from "@/components/ui/ToastProvider";
+import { dashboardQueryKey } from "@/features/dashbord/queryKeys";
 import { MessagesListener } from "@/features/messages/realtime/MessagesListener";
-import type { ActionResult, DialogViewModel, ManagerSummary, Message } from "@/types/message";
+import type { ActionResult, DashboardDataResult, DialogViewModel, ManagerSummary, Message } from "@/types/message";
 
 type MessagesDashboardProps = {
   currentManagerId: number | null;
@@ -411,6 +413,36 @@ function getReopenAvailability(dialog: DialogViewModel | null): { canReopen: boo
   };
 }
 
+function updateDialogAssignmentInCache(
+  data: DashboardDataResult | undefined,
+  clientId: number,
+  assignment: {
+    currentManagerId: number | null;
+    managerAuthUserId: string | null;
+    managerFirstName: string | null;
+    managerLastName: string | null;
+  },
+): DashboardDataResult | undefined {
+  if (!data) {
+    return data;
+  }
+
+  return {
+    ...data,
+    dialogs: data.dialogs.map((dialog) =>
+      dialog.client_id === clientId
+        ? {
+            ...dialog,
+            current_manager_id: assignment.currentManagerId,
+            manager_auth_user_id: assignment.managerAuthUserId,
+            manager_first_name: assignment.managerFirstName,
+            manager_last_name: assignment.managerLastName,
+          }
+        : dialog,
+    ),
+  };
+}
+
 export function MessagesDashboard({
   currentManagerId,
   currentUserId,
@@ -420,6 +452,7 @@ export function MessagesDashboard({
   const assignmentFormRef = useRef<HTMLFormElement>(null);
   const replyFormRef = useRef<HTMLFormElement>(null);
   const closeFormRef = useRef<HTMLFormElement>(null);
+  const queryClient = useQueryClient();
   const router = useRouter();
   const { showToast } = useToast();
   const [isRefreshing, startTransition] = useTransition();
@@ -461,6 +494,10 @@ export function MessagesDashboard({
 
     return counts;
   }, [managers]);
+  const currentManagerSummary = useMemo(
+    () => managers.find((manager) => manager.id === currentManagerId) ?? null,
+    [currentManagerId, managers],
+  );
 
   const normalizedQuery = searchQuery.trim().toLowerCase();
   const filteredDialogs = useMemo(() => {
@@ -488,6 +525,7 @@ export function MessagesDashboard({
     filteredDialogs.find((dialog) => dialog.telegram_chat_id === selectedChatId) ??
     filteredDialogs[0] ??
     null;
+  const selectedDialogClientId = selectedDialog?.client_id ?? null;
   const totalPages = Math.max(1, Math.ceil((selectedDialog?.messages.length ?? 0) / MESSAGES_PER_PAGE));
   const safeCurrentPage = Math.min(currentPage, totalPages);
   const pageStartIndex = (safeCurrentPage - 1) * MESSAGES_PER_PAGE;
@@ -532,28 +570,60 @@ export function MessagesDashboard({
     if (assignState.success) {
       showToast(assignState.success);
       assignmentFormRef.current?.reset();
+      if (selectedDialogClientId && currentManagerId && currentUserId) {
+        queryClient.setQueryData<DashboardDataResult | undefined>(dashboardQueryKey, (data) =>
+          updateDialogAssignmentInCache(data, selectedDialogClientId, {
+            currentManagerId,
+            managerAuthUserId: currentUserId,
+            managerFirstName: currentManagerSummary?.first_name ?? null,
+            managerLastName: currentManagerSummary?.last_name ?? null,
+          }),
+        );
+      }
       startTransition(() => router.refresh());
+      void queryClient.invalidateQueries({ queryKey: dashboardQueryKey });
     }
-  }, [assignState, router, showToast, startTransition]);
+  }, [
+    assignState.success,
+    currentManagerId,
+    currentManagerSummary,
+    currentUserId,
+    queryClient,
+    router,
+    selectedDialogClientId,
+    showToast,
+    startTransition,
+  ]);
 
   useEffect(() => {
     if (assignState.error) {
       showToast(assignState.error, "error");
     }
-  }, [assignState, showToast]);
+  }, [assignState.error, showToast]);
 
   useEffect(() => {
     if (releaseState.success) {
       showToast(releaseState.success);
+      if (selectedDialogClientId) {
+        queryClient.setQueryData<DashboardDataResult | undefined>(dashboardQueryKey, (data) =>
+          updateDialogAssignmentInCache(data, selectedDialogClientId, {
+            currentManagerId: null,
+            managerAuthUserId: null,
+            managerFirstName: null,
+            managerLastName: null,
+          }),
+        );
+      }
       startTransition(() => router.refresh());
+      void queryClient.invalidateQueries({ queryKey: dashboardQueryKey });
     }
-  }, [releaseState, router, showToast, startTransition]);
+  }, [queryClient, releaseState.success, router, selectedDialogClientId, showToast, startTransition]);
 
   useEffect(() => {
     if (releaseState.error) {
       showToast(releaseState.error, "error");
     }
-  }, [releaseState, showToast]);
+  }, [releaseState.error, showToast]);
 
   useEffect(() => {
     if (closeState.success) {
