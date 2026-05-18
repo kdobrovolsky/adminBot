@@ -22,8 +22,6 @@ export default async function LoginPage() {
     <AuthPageShell
       title="Login"
       description="Введите email и пароль для входа в админку."
-      backHref="/"
-      backLabel="Назад в админку"
     >
       <LoginForm />
     </AuthPageShell>

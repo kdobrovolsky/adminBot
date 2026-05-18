@@ -4,8 +4,8 @@ import Link from "next/link";
 type AuthPageShellProps = {
   title: string;
   description: string;
-  backHref: string;
-  backLabel: string;
+  backHref?: string;
+  backLabel?: string;
   children: ReactNode;
 };
 
@@ -29,11 +29,13 @@ export function AuthPageShell({
 
         {children}
 
-        <div className="border-t border-white/10 px-6 py-4 text-sm text-slate-400 sm:px-8">
-          <Link href={backHref} className="transition hover:text-cyan-300">
-            {backLabel}
-          </Link>
-        </div>
+        {backHref && backLabel ? (
+          <div className="border-t border-white/10 px-6 py-4 text-sm text-slate-400 sm:px-8">
+            <Link href={backHref} className="transition hover:text-cyan-300">
+              {backLabel}
+            </Link>
+          </div>
+        ) : null}
       </div>
     </main>
   );
